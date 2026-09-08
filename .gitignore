@@ -1,0 +1,44 @@
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+
+# Editors and operating-system files
+.idea/
+.vscode/
+.claude/settings.local.json
+.claude/*.lock
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# OCT source data and generated binary artifacts
+*.RAW
+*.raw
+*.mat
+*.h5
+*.hdf5
+*.npz
+*.npy
+*.pt
+*.pth
+*.ckpt
+*.onnx
+
+# Generated outputs may contain large derived data and human annotations.
+# Keep documentation reports, but leave all other output artifacts local.
+outputs/**
+!outputs/**/
+!outputs/**/*.md
+
+# Local logs and one-off machine migration helper
+*.log
+organize.bat

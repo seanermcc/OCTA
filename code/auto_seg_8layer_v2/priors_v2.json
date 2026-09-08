@@ -1,0 +1,95 @@
+{
+  "generated": "2026-09-02T14:47:38",
+  "anchors": "human",
+  "n_corrected_labels": 53,
+  "animals": [
+    "TS165",
+    "TS169",
+    "TS241",
+    "TS247",
+    "TS250",
+    "TS267"
+  ],
+  "shipped_priors": {
+    "RNFL_GCL": 0.239,
+    "GCL_IPL": 0.2799,
+    "IPL_INL": 0.5798729848558867,
+    "INL_OPL": 0.7459697117733268,
+    "OPL_ONL": 0.8045920859794822
+  },
+  "priors": {
+    "RNFL_GCL": 0.3694774149829189,
+    "GCL_IPL": 0.4255741196460294,
+    "IPL_INL": 0.6624528397737075,
+    "INL_OPL": 0.8018070126511512,
+    "OPL_ONL": 0.874751065880533
+  },
+  "surface_details": {
+    "RNFL_GCL": {
+      "n_bscans": 53,
+      "n_animals": 6,
+      "iqr": [
+        0.3399386859229977,
+        0.40975106535452505
+      ],
+      "leave_one_animal_out_range": [
+        0.35798034885936125,
+        0.37919572606618634
+      ],
+      "leave_one_animal_out_spread": 0.021215377206825092
+    },
+    "GCL_IPL": {
+      "n_bscans": 53,
+      "n_animals": 6,
+      "iqr": [
+        0.39198758138043444,
+        0.4734645502112719
+      ],
+      "leave_one_animal_out_range": [
+        0.41908502099724,
+        0.4301370003688373
+      ],
+      "leave_one_animal_out_spread": 0.011051979371597298
+    },
+    "IPL_INL": {
+      "n_bscans": 48,
+      "n_animals": 6,
+      "iqr": [
+        0.6430384115410885,
+        0.678631660312439
+      ],
+      "leave_one_animal_out_range": [
+        0.6580480552934939,
+        0.6651338661699238
+      ],
+      "leave_one_animal_out_spread": 0.007085810876429899
+    },
+    "INL_OPL": {
+      "n_bscans": 50,
+      "n_animals": 6,
+      "iqr": [
+        0.7912040974176693,
+        0.8208895463163234
+      ],
+      "leave_one_animal_out_range": [
+        0.7974995446776012,
+        0.8032386409261423
+      ],
+      "leave_one_animal_out_spread": 0.005739096248541076
+    },
+    "OPL_ONL": {
+      "n_bscans": 51,
+      "n_animals": 6,
+      "iqr": [
+        0.8620800096215069,
+        0.885439286907461
+      ],
+      "leave_one_animal_out_range": [
+        0.8695379036219797,
+        0.8764596318412098
+      ],
+      "leave_one_animal_out_spread": 0.006921728219230094
+    }
+  },
+  "note": "Median of per-B-scan medians over human-drawn, visible, reliable boundaries outside excluded A-lines."
+}
