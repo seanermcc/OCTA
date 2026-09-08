@@ -18,14 +18,49 @@ import argparse
 import json
 from pathlib import Path
 import numpy as np
+from stage_a.common import DEFAULT, output_dir, write_json, write_csv, verify, fingerprint
+from stage_a.partitions import validate_partition
+from stage_a.geometry import PREPROCESS
+from eight_surface.config import SURFACE_NAMES
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from stage_a.common import DEFAULT, output_dir, write_json, write_csv
-from stage_a.data import Dataset
-from eight_surface.config import SURFACE_NAMES
+
+# Deliberately torch-free. `stage_a.data.Dataset` imports torch, and loading
+# torch's libomp into the same process as matplotlib's MKL libiomp5md aborts
+# with "OMP: Error #15" on this Windows environment. Nothing here needs a
+# tensor, so `FrozenSplit` repeats Dataset's integrity checks without it.
 
 GROSS_UM = 25.0  # provisional reporting cutoff, not an acceptance threshold
+
+
+class FrozenSplit:
+    """Dataset.__init__'s identity and fingerprint checks, without torch."""
+
+    def __init__(self, path, split):
+        self.path = Path(path)
+        self.manifest = json.loads((self.path / "manifest.json").read_text())
+        self.partitions = json.loads((self.path / "partitions.json").read_text())
+        self.cache = json.loads((self.path / "cache_manifest.json").read_text())
+        validate_partition(self.manifest, self.partitions)
+        verify(self.partitions["manifest"])
+        if (self.cache["dataset_id"] != self.manifest["dataset_id"]
+                or self.cache["preprocessing"] != PREPROCESS):
+            raise ValueError("Cache/dataset preprocessing identity mismatch")
+        self.records = [r for r in self.manifest["records"]
+                        if r["key"] in self.partitions["keys"][split]]
+        if not self.records:
+            raise ValueError("Empty partition")
+        missing = [r["key"] for r in self.records if r["key"] not in self.cache["entries"]]
+        if missing:
+            raise FileNotFoundError(f"Missing caches: {missing}")
+        for r in self.records:
+            verify(self.cache["entries"][r["key"]]["file"])
+            verify(r["targets_fingerprint"])
+        self.identity = dict(dataset_id=self.manifest["dataset_id"],
+                             partition_id=self.partitions["partition_id"],
+                             preprocessing=PREPROCESS,
+                             cache_manifest=fingerprint(self.path / "cache_manifest.json"))
 
 
 def longest_run(mask):
@@ -114,7 +149,7 @@ def run(args):
     if args.split == "test":
         raise ValueError("Final-test animals are locked")
     m = json.loads((root / "manifest.json").read_text())
-    data = Dataset(root, args.split, eligible_only=False)
+    data = FrozenSplit(root, args.split)
     out = output_dir(args.out)
     figures = output_dir(out / "overlays")
     evaldir = Path(args.eval)
