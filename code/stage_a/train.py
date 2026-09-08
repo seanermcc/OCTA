@@ -125,13 +125,15 @@ def run(args):
         pred,entropy=decode(actual)
         if pred.shape!=(1,8,x.shape[-1]) or not torch.isfinite(pred).all():
             raise AssertionError("Invalid prediction shape/values")
-    write_json(out/f"run_step_{step:06d}.json",dict(config=config,identity=data.identity,
-        code_identity=code_identity(),device=device,torch=torch.__version__,cuda=torch.version.cuda,
-        parameters=sum(p.numel() for p in model.parameters()),events=events,
-        elapsed_s=time.monotonic()-start,checkpoint_reload_exact=True,prediction_shape=list(pred.shape),
-        smoke_train_only=bool(args.smoke_steps),test_accessed=False,
-        peak_cuda_memory_bytes=torch.cuda.max_memory_allocated() if device.startswith("cuda") else None,
-        promotion="experimental_software_smoke_only" if args.smoke_steps else "experimental_requires_scientific_acceptance"))
+    # An already-complete resume must not replace saved history with no events.
+    if events:
+        write_json(out/f"run_step_{step:06d}.json",dict(config=config,identity=data.identity,
+            code_identity=code_identity(),device=device,torch=torch.__version__,cuda=torch.version.cuda,
+            parameters=sum(p.numel() for p in model.parameters()),events=events,
+            elapsed_s=time.monotonic()-start,checkpoint_reload_exact=True,prediction_shape=list(pred.shape),
+            smoke_train_only=bool(args.smoke_steps),test_accessed=False,
+            peak_cuda_memory_bytes=torch.cuda.max_memory_allocated() if device.startswith("cuda") else None,
+            promotion="experimental_software_smoke_only" if args.smoke_steps else "experimental_requires_scientific_acceptance"))
 
 
 if __name__ == "__main__":
