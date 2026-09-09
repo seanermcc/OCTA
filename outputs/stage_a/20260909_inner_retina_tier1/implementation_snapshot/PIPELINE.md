@@ -6,18 +6,6 @@ simpler approach failed on this specific dataset.
 
 Conventions that hold everywhere:
 
-The current full-cohort continuation is in
-`outputs/stage_a/20260909_full_labeled_cohort/`. On 2026-09-09 the user explicitly
-released all labeled animals for development; original datasets and partitions
-remain preserved. Its 102 corrected B-scans use exact manual stroke provenance
-where available and the documented legacy edited-surface approximation otherwise.
-Biological footprint status is a reporting stratum, not a reason to discard a
-visible manual boundary. Image exclusions, visibility/reliability, displacement,
-and shadow still govern position targets. Nine animal-excluded models provide
-cross-validation; a separate all-label model supplies experimental volume outputs.
-The latter's fit errors are not independent validation. Checkpoints save reports
-and artifacts while execution continues.
-
 | | |
 |---|---|
 | Canonical orientation | depth index 0 = vitreous, increasing into tissue |

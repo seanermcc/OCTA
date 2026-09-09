@@ -12,19 +12,13 @@ may contain study data. The pipeline expects the source dataset to be available
 locally; paths shown below describe the lab workstation layout and can be
 changed through the scripts' command-line arguments.
 
-**Current inner-retina status (2026-09-09): the user authorized the full labeled
-cohort, including the formerly reserved animals. The new development dataset has
-102 corrected B-scans from nine animals and uses manual positions only; the layer
-segmentation skill and published thickness values are not ground truth. The
-eight-head architecture is retained, with four inner boundaries reported.
-Nine animal-excluded models and a separate all-label inference model are complete.
-Four complete volumes and 36 new review candidates are saved; all 33 implementation
-checks passed. Open the [image-first guide](outputs/stage_a/20260909_full_labeled_cohort/START_HERE.md)
-or the [full-cohort run report](outputs/stage_a/20260909_full_labeled_cohort/RUN_REPORT.md).
-The earlier [seven-animal Tier 1 report](outputs/stage_a/20260909_inner_retina_tier1/RUN_REPORT.md)
-remains a historical checkpoint. No untouched final-test estimate is claimed in
-the new run. The strict no-regression criterion failed, so these remain experimental
-outputs; the full 314-scan batch has not been run.**
+**Current inner-retina status (2026-09-09): Stage A is evaluated against manually
+edited boundaries only. The existing eight-head model is retained, with four
+inner boundaries reported. Constrained decoding greatly reduces large errors
+and removes crossings, but small median regressions prevent a strict validation
+pass. The animal-excluded calibration and review workflow is documented in the
+[current Tier 1 report](outputs/stage_a/20260909_inner_retina_tier1/RUN_REPORT.md).
+These remain experimental outputs. The full 314-scan batch has not been run.**
 
 > **The five existing files in `outputs\segmented\` are stale.** They were
 > written with the old 9-surface cascade, whose inner-retina labels are wrong by

@@ -160,6 +160,42 @@ def _load_or_fresh(seg_path: Path, fresh: bool):
     return scan_id, images, surfaces, confidence, shadow
 
 
+def write_review_pack(out, scan_id, images, surfaces, confidence, shadow,
+                      picked, controls, score, *, extra=None):
+    """Write GUI candidates only. No human-label writer or reference score is used.
+
+    Inputs are full-volume arrays in the same canonical cropped coordinates.
+    Other selectors can reuse the established format without its legacy ranking.
+    """
+    out = Path(out)
+    if not out.name.endswith("_pack.npz"):
+        raise ValueError("Review candidates must use the _pack.npz suffix")
+    picked = np.asarray(picked, dtype=int)
+    if (surfaces.ndim != 3 or surfaces.shape[1] != N_SURFACES
+            or confidence.shape != surfaces.shape
+            or shadow.shape != (surfaces.shape[0], surfaces.shape[2])
+            or images.shape[0] != surfaces.shape[0]
+            or images.shape[2] != surfaces.shape[2]
+            or len(np.unique(picked)) != len(picked)
+            or np.any(picked < 0) or np.any(picked >= len(images))):
+        raise ValueError("Invalid review-pack geometry or duplicate indices")
+    payload = dict(images=images[picked].astype(np.float32),
+        surfaces=surfaces[picked].astype(np.float32),
+        confidence=confidence[picked].astype(np.float16),
+        shadow=shadow[picked].astype(bool), picked=picked.astype(np.int32),
+        bscan_index=picked.astype(np.int32), is_control=np.isin(picked, controls),
+        suspect_score=np.asarray(score)[picked].astype(np.float32),
+        surface_names=np.array(SURFACE_NAMES), cascade_version=np.array([CASCADE_VERSION]),
+        scan_id=np.array([scan_id]), px_um=np.array([PX_UM], np.float32))
+    if extra:
+        if set(extra) & set(payload):
+            raise ValueError("Extra metadata cannot replace required pack fields")
+        payload.update(extra)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(out, **payload)
+    return out
+
+
 def _pack_one(seg_path: Path, args, out_dir: Path, target_n: int | None = None) -> int:
     scan_id, images, surfaces, confidence, shadow = _load_or_fresh(seg_path, args.fresh)
     score, parts = _suspect_score(surfaces, confidence, shadow, PX_UM)
@@ -172,21 +208,8 @@ def _pack_one(seg_path: Path, args, out_dir: Path, target_n: int | None = None) 
     middle = _spread_pick(-np.abs(score - np.median(score)), n_control, args.min_sep, exclude=worst)
     picked = np.unique(np.concatenate([worst, middle]))
     out = out_dir / f"{scan_id}_pack.npz"
-    np.savez_compressed(
-        out,
-        images=images[picked].astype(np.float32),
-        surfaces=surfaces[picked].astype(np.float32),
-        confidence=confidence[picked].astype(np.float16),
-        shadow=shadow[picked].astype(bool),
-        picked=picked.astype(np.int32),
-        bscan_index=picked.astype(np.int32),
-        is_control=np.isin(picked, middle),
-        suspect_score=score[picked].astype(np.float32),
-        surface_names=np.array(SURFACE_NAMES),
-        cascade_version=np.array([CASCADE_VERSION]),
-        scan_id=np.array([scan_id]),
-        px_um=np.array([PX_UM], np.float32),
-    )
+    write_review_pack(out, scan_id, images, surfaces, confidence, shadow,
+                      picked, middle, score)
     print(f"  {scan_id}: {picked.size} B-scans ({worst.size} suspect + "
           f"{picked.size - worst.size} controls) -> {out.name}")
     for item in sorted(picked, key=lambda x: -score[x])[:5]:

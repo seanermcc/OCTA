@@ -25,6 +25,7 @@ import numpy as np
 from stage_a.common import DEFAULT, output_dir, write_json, write_csv
 from stage_a.data import Dataset
 from stage_a.metrics import evaluate
+from stage_a_inner_retina import evaluate as evaluate_inner, sensitivity
 
 
 def load_predictions(directory, records):
@@ -46,6 +47,8 @@ def run(args):
         raise ValueError("Final-test animals are locked; comparison is development-only")
     data = Dataset(root, args.split, eligible_only=False)
     out = output_dir(args.out)
+    if getattr(args, "scope", "eight-surface") == "inner-retina" and any(out.iterdir()):
+        raise FileExistsError("Choose an empty output directory for the frozen inner-retina comparison")
     named = dict(pair.split("=", 1) for pair in args.evals)
     records = data.records
     targets = {}
@@ -54,7 +57,9 @@ def run(args):
             targets[r["key"]] = {k: t[k].copy() for k in t.files}
     preds = {name: load_predictions(d, records) for name, d in named.items()}
 
-    eligible = [r for r in records if targets[r["key"]]["valid"].any()]
+    inner = getattr(args, "scope", "eight-surface") == "inner-retina"
+    evaluator = evaluate_inner if inner else evaluate
+    eligible = [r for r in records if targets[r["key"]]["valid"][:4 if inner else 8].any()]
     shared_keys = sorted(set.intersection(*[set(p) for p in preds.values()])) if preds else []
     shared = [r for r in records if r["key"] in shared_keys]
 
@@ -71,12 +76,16 @@ def run(args):
             eligible_animals_with_any_prediction=len(sorted({r["animal"] for r in eligible if r["key"] in present})),
             missing_eligible_keys=";".join(r["key"] for r in eligible if r["key"] not in present)))
         for cohort, subset in (("complete", records), ("shared_available", shared)):
-            report = evaluate(subset, targets, preds[name], m["sources"], args.gross_um)
-            for s in report["summary"]:
-                rows.append(dict(predictor=name, cohort=cohort, n_decisions=len(subset), **s))
-            for s in report["animal_macro"]:
-                macro_rows.append(dict(predictor=name, cohort=cohort,
-                                       n_decisions=len(subset), **s))
+            scenarios = sensitivity(subset) if inner else ((None, subset),)
+            for scenario, selected in scenarios:
+                extra = {"sensitivity": scenario} if inner else {}
+                report = evaluator(selected, targets, preds[name], m["sources"], args.gross_um)
+                for s in report["summary"]:
+                    rows.append(dict(predictor=name, cohort=cohort, **extra,
+                                     n_decisions=len(selected), **s))
+                for s in report["animal_macro"]:
+                    macro_rows.append(dict(predictor=name, cohort=cohort, **extra,
+                                           n_decisions=len(selected), **s))
     write_csv(out / "comparison.csv", rows)
     write_csv(out / "comparison_animal_macro.csv", macro_rows)
     write_csv(out / "prediction_coverage.csv", coverage)
@@ -85,6 +94,7 @@ def run(args):
         predictors=named, gross_um=args.gross_um,
         shared_available_keys=shared_keys, n_shared_available=len(shared),
         n_decisions=len(records), n_eligible_decisions=len(eligible),
+        reporting_scope=getattr(args, "scope", "eight-surface"),
         convention=("complete cohort keeps missing predictions in eligible denominators as failures; "
                     "shared_available restricts to decisions all listed predictors produced and is not "
                     "a complete-cohort result."),
@@ -100,4 +110,6 @@ if __name__ == "__main__":
     p.add_argument("--evals", nargs="+", required=True, help="name=eval_directory")
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--gross-um", type=float, default=25.0)
+    p.add_argument("--scope", choices=["eight-surface", "inner-retina"], default="eight-surface",
+                   help="Inner-retina includes paired with/without-b0510 sensitivity tables")
     run(p.parse_args())

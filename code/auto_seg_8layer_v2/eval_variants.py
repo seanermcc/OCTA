@@ -195,7 +195,22 @@ def main() -> int:
     parser.add_argument("--loao", action="store_true",
                         help="leave-one-animal-out: score each animal under priors "
                              "refit without it, instead of running --variants")
+    parser.add_argument("--inner-retina", action="store_true",
+                        help="Controlled ILM/IPL_INL conditioning experiment on permitted development animals")
+    parser.add_argument("--data", type=Path, default=CODE_DIR.parent / "outputs/stage_a/20260908_v2")
+    parser.add_argument("--inner-anchor-models", type=Path,
+                        help="Optional independent fold-model directory for the outer-free hybrid control")
     args = parser.parse_args()
+    if args.inner_anchor_models and not args.inner_retina:
+        parser.error("--inner-anchor-models requires --inner-retina")
+
+    if args.inner_retina:
+        if args.inner_anchor_models:
+            from auto_seg_8layer_v2.inner_learned_anchors import run
+        else:
+            from auto_seg_8layer_v2.inner_band import run
+        run(args)
+        return 0
 
     records = [r for r in L.load_labels(args.labels) if r["verdict"] == "corrected"]
     by_scan = defaultdict(list)

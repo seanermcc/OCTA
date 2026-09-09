@@ -851,6 +851,7 @@ def main() -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("target", nargs="?", default=str(DEFAULT_REVIEW_DIR))
     parser.add_argument("--labels", default=str(DEFAULT_LABEL_DIR))
+    parser.add_argument("--window-title", default="OCT eight-boundary correction")
     args = parser.parse_args()
     packs = collect_packs(Path(args.target))
     if not packs:
@@ -859,7 +860,7 @@ def main() -> int:
     app = QtWidgets.QApplication(sys.argv)
     app.setStyle("Fusion")
     window = MainWindow(packs, Path(args.labels))
-    window.setWindowTitle("OCT eight-boundary correction")
+    window.setWindowTitle(args.window_title)
     window.show()
     return app.exec()
 
