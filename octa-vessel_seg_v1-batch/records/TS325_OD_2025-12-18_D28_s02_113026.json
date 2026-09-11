@@ -1,0 +1,181 @@
+{
+  "scan_id": "TS325_OD_2025-12-18_D28_s02_113026",
+  "identity": {
+    "source": "G:\\OCT_TreeShrew\\OCTA_RawData\\25.12.18 TS325M CNV D28\\New folder\\TS325-R2_11_30_26_512_512_Rect_X500um_Y500um_RPE_OCTA_Processed\\TS325-R2_11_30_26_512_512_Rect_X500um_Y500um_RPE_processedVolumes.mat",
+    "source_size": 4021014218,
+    "source_mtime_ns": 1768265652000000000,
+    "retina_band": [
+      0,
+      399
+    ],
+    "code_hashes": {
+      "vasculature_baseline.py": "33f070f9b2c4fcb121c931ec84ebd5e8d7c30a3c0b0fdf5d21ed09d26b76b273",
+      "vasculature_shape_gate.py": "3f75abe87a8d8df3b782db3a1d0eb074052b0be0378c10662f7ff60f3ad8d9f0"
+    },
+    "threshold": 0.18,
+    "parameters": {
+      "min_area": 600,
+      "min_length": 80.0,
+      "min_width": 6.0,
+      "min_slenderness": 5.0,
+      "min_terminal_length": 35.0
+    },
+    "onh_label_sha256": null,
+    "original_proposal_sha256": null
+  },
+  "status": "complete",
+  "vessel_pixels": 35310,
+  "native_shape": [
+    512,
+    512
+  ],
+  "original_queue_exact_match": false,
+  "component_audit": [
+    {
+      "component_id": 1,
+      "bbox": [
+        10,
+        10,
+        46,
+        39
+      ],
+      "input_area_px": 415,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 415,
+          "length_px": 40.2842712474619,
+          "median_width_px": 10.0,
+          "length_to_width": 4.02842712474619,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline",
+            "compact shape"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 2,
+      "bbox": [
+        10,
+        57,
+        502,
+        125
+      ],
+      "input_area_px": 9167,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 9167,
+          "length_px": 507.3380951166245,
+          "median_width_px": 18.110770276274835,
+          "length_to_width": 28.013060039817248,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 3,
+      "bbox": [
+        10,
+        93,
+        502,
+        340
+      ],
+      "input_area_px": 9513,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 9513,
+          "length_px": 586.0264786586946,
+          "median_width_px": 17.08800749063506,
+          "length_to_width": 34.29460567476117,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 4,
+      "bbox": [
+        10,
+        176,
+        303,
+        502
+      ],
+      "input_area_px": 16630,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 16630,
+          "length_px": 586.5533905932756,
+          "median_width_px": 20.0,
+          "length_to_width": 29.32766952966378,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 5,
+      "bbox": [
+        370,
+        137,
+        398,
+        156
+      ],
+      "input_area_px": 199,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 199,
+          "length_px": 27.384776310850242,
+          "median_width_px": 6.0,
+          "length_to_width": 4.564129385141707,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline",
+            "compact shape"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 6,
+      "bbox": [
+        385,
+        176,
+        418,
+        198
+      ],
+      "input_area_px": 377,
+      "pruned_terminal_branches": [
+        {
+          "length_px": 25.07106781186548,
+          "median_width_px": 10.099019513592784
+        }
+      ],
+      "components_after_pruning": [
+        {
+          "area_px": 132,
+          "length_px": 18.242640687119287,
+          "median_width_px": 6.16227766016838,
+          "length_to_width": 2.9603730459981934,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline",
+            "compact shape"
+          ]
+        }
+      ]
+    }
+  ],
+  "proposal_sha256": "3fbb2e33a1d048d42ffa442c808e6b44abe79f7c33437ec328e4db011eb495f1",
+  "preview_sha256": "7b6faa7ef969bd3909d91b49110f02adac70d6f482989065166e72fa5b91193e",
+  "seconds": 10.19
+}

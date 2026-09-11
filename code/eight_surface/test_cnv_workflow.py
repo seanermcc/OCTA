@@ -12,7 +12,7 @@ import numpy as np
 from skimage.draw import polygon
 
 from eight_surface import cnv_labels
-from eight_surface.cnv_gui import _rasterize_edge, _smooth_stroke
+from eight_surface.cnv_gui import _brush_mask, _rasterize_edge, _smooth_stroke
 from eight_surface.cnv_review import (
     ZONE_CORE,
     ZONE_NEARBY,
@@ -30,14 +30,20 @@ class CnvWorkflowTests(unittest.TestCase):
     def test_cnv_label_round_trip_is_versioned_and_surface_free(self):
         mask = np.zeros((32, 48), dtype=bool)
         mask[8:20, 12:35] = True
+        vessels = np.zeros_like(mask)
+        vessels[4:28, 22:25] = True
+        onh_area = np.zeros_like(mask)
+        onh_area[2:10, 2:12] = True
         onh = np.zeros_like(mask)
         onh[2:24, 3] = True
         with tempfile.TemporaryDirectory() as temp:
             path = cnv_labels.save_label(
                 temp, scan_id="TS999_OD_D7_s01", cnv_mask=mask,
+                vasculature_mask=vessels, onh_mask=onh_area,
                 onh_edge_mask=onh, source_volume="source_processedVolumes.mat",
                 source_segmentation="segmented.npz", retina_band=(10, 210),
-                vitreous_at_high_index=True, animal="TS999", eye="OD")
+                vitreous_at_high_index=True, animal="TS999", eye="OD",
+                reviewed_targets=np.array([True, True, True]))
             first = cnv_labels.load_label(path)
             cnv_labels.save_label(
                 temp, scan_id="TS999_OD_D7_s01", cnv_mask=mask,
@@ -48,6 +54,9 @@ class CnvWorkflowTests(unittest.TestCase):
             with np.load(path, allow_pickle=False) as raw:
                 keys = set(raw.files)
         self.assertTrue(np.array_equal(first["cnv_mask"], mask))
+        self.assertTrue(np.array_equal(first["vasculature_mask"], vessels))
+        self.assertTrue(np.array_equal(first["onh_mask"], onh_area))
+        self.assertTrue(first["reviewed_targets"].all())
         self.assertTrue(first["reviewed"])
         self.assertTrue(first["lesion_present"])
         self.assertTrue(np.array_equal(first["onh_edge_mask"], onh))
@@ -58,6 +67,13 @@ class CnvWorkflowTests(unittest.TestCase):
         self.assertEqual(second["revision"], 2)
         self.assertNotIn("surfaces", keys)
         self.assertNotIn("thickness", keys)
+
+    def test_round_brush_is_continuous_and_size_adjustable(self):
+        small = _brush_mask([(4, 10), (30, 10)], (40, 40), diameter=5)
+        large = _brush_mask([(4, 10), (30, 10)], (40, 40), diameter=13)
+        self.assertTrue(small[10, 4:31].all())
+        self.assertTrue(large[10, 4:31].all())
+        self.assertGreater(large.sum(), small.sum() * 2)
 
     def test_freehand_cnvs_close_smoothly_and_onh_stays_an_open_edge(self):
         # A slightly wobbly, incomplete circle closes on release and creates a
@@ -84,6 +100,25 @@ class CnvWorkflowTests(unittest.TestCase):
         self.assertTrue(record["reviewed"])
         self.assertFalse(record["lesion_present"])
         self.assertEqual(record["lesion_pixel_count"], 0)
+
+    def test_version_two_empty_masks_stay_unknown_not_negative(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "TS999_OLD_cnv.npz"
+            shape = (8, 10)
+            edge = np.zeros(shape, bool)
+            edge[2:6, 3] = True
+            np.savez_compressed(
+                path, cnv_mask=np.zeros(shape, bool), onh_edge_mask=edge,
+                native_shape=np.array(shape), retina_band=np.array([10, 80]),
+                scan_id=np.array(["TS999_OLD"]), reviewed=np.array([True]),
+                label_format_version=np.array([
+                    cnv_labels.V2_CNV_LABEL_FORMAT_VERSION]))
+            record = cnv_labels.load_label(path)
+        self.assertEqual(
+            record["reviewed_targets"].tolist(), [True, False, True])
+        self.assertFalse(record["vasculature_mask"].any())
+        self.assertFalse(record["onh_mask"].any())
+        self.assertTrue(np.array_equal(record["onh_edge_mask"], edge))
 
     def test_zone_map_partitions_native_grid(self):
         mask = np.zeros((180, 220), dtype=bool)

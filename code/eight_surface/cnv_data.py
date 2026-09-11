@@ -9,7 +9,7 @@ import numpy as np
 
 from octa.volio import ProcessedVolume, VolumeReadError, find_retina_band
 
-from .config import CASCADE_VERSION
+from .config import CASCADE_VERSION, SURFACE_NAMES
 from .segment import detect_orientation, prepare_bscan
 
 
@@ -21,6 +21,11 @@ class CnvScan:
     structural_band: np.ndarray  # stored orientation [B-scan, A-line, depth]
     structural_enface: np.ndarray
     octa_enface: np.ndarray
+    surfaces: np.ndarray  # canonical cropped [B-scan, surface, A-line]
+    confidence: np.ndarray
+    shadow: np.ndarray
+    surface_names: tuple[str, ...]
+    px_um: float
     retina_band: tuple[int, int]
     vitreous_at_high_index: bool
     animal: str = ""
@@ -85,9 +90,10 @@ def _mean_db_dataset(dataset, depth_slice: slice,
 def read_scan(segmentation_path: str | Path) -> CnvScan:
     """Read one current eight-boundary scan for linked annotation.
 
-    Surface arrays are not used to construct either projection.  The
-    segmentation output supplies source/provenance only; orientation is
-    re-detected from the structural data as required by the project contract.
+    Surface arrays are never used to construct either projection.  They are
+    loaded only for the linked B-scan overlay.  Orientation is re-detected from
+    the structural data as required by the project contract; the stored
+    orientation flag is deliberately ignored.
     """
     seg_path = Path(segmentation_path)
     with np.load(seg_path, allow_pickle=False) as seg:
@@ -97,6 +103,21 @@ def read_scan(segmentation_path: str | Path) -> CnvScan:
                 f"{seg_path.name} uses cascade {version!r}; expected {CASCADE_VERSION!r}")
         scan_id = _scalar(seg, "scan_id", seg_path.stem)
         source = Path(_scalar(seg, "source"))
+        surface_names = tuple(str(x) for x in seg["surface_names"])
+        if surface_names != tuple(SURFACE_NAMES):
+            raise ValueError(
+                f"{seg_path.name} surfaces do not match the current eight-boundary "
+                "definition")
+        surfaces = np.asarray(seg["surfaces"], dtype=np.float32)
+        confidence = (np.asarray(seg["confidence"], dtype=np.float32)
+                      if "confidence" in seg.files
+                      else np.full(surfaces.shape, np.nan, dtype=np.float32))
+        shadow = (np.asarray(seg["shadow"], dtype=bool)
+                  if "shadow" in seg.files
+                  else np.zeros(surfaces.shape[::2], dtype=bool))
+        px_um = float(seg["px_um"][0]) if "px_um" in seg.files else 1.12
+        stored_band = (tuple(int(x) for x in seg["retina_band"])
+                       if "retina_band" in seg.files else None)
         metadata = {
             key: _scalar(seg, key) for key in
             ("animal", "eye", "day_label", "days_post_laser", "session_date")
@@ -114,12 +135,28 @@ def read_scan(segmentation_path: str | Path) -> CnvScan:
                 f"structural grid {volume.struct.shape[:2]} and OCTA grid "
                 f"{volume.angio.shape[:2]} do not align")
         profile = _streamed_depth_profile(volume.struct)
-        lo, hi, _unused = find_retina_band(profile)
+        detected_lo, detected_hi, _unused = find_retina_band(profile)
         vitreous_at_high_index = detect_orientation(profile)
+        lo, hi = stored_band or (detected_lo, detected_hi)
+        if not (0 <= lo < hi <= volume.struct.shape[2]):
+            raise ValueError(
+                f"stored retina band {(lo, hi)} is outside structural depth "
+                f"0..{volume.struct.shape[2]}")
         structural_band = volume.read_volume(
             channel="struct", depth_slice=slice(lo, hi))
         structural_enface = _mean_db_array(structural_band)
         octa_enface = _mean_db_dataset(volume.angio, slice(lo, hi))
+
+    native_shape = tuple(int(x) for x in structural_band.shape[:2])
+    expected_surfaces = (native_shape[0], len(surface_names), native_shape[1])
+    if surfaces.shape != expected_surfaces:
+        raise ValueError(
+            f"surface shape {surfaces.shape} does not match volume grid "
+            f"{expected_surfaces}")
+    if confidence.shape != surfaces.shape:
+        raise ValueError("confidence must have the same shape as surfaces")
+    if shadow.shape != native_shape:
+        raise ValueError("shadow must have shape [B-scan, A-line]")
 
     return CnvScan(
         scan_id=scan_id,
@@ -128,6 +165,11 @@ def read_scan(segmentation_path: str | Path) -> CnvScan:
         structural_band=structural_band,
         structural_enface=structural_enface,
         octa_enface=octa_enface,
+        surfaces=surfaces,
+        confidence=confidence,
+        shadow=shadow,
+        surface_names=surface_names,
+        px_um=px_um,
         retina_band=(lo, hi),
         vitreous_at_high_index=vitreous_at_high_index,
         **metadata,

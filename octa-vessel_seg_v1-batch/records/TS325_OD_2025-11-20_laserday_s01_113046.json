@@ -1,0 +1,127 @@
+{
+  "scan_id": "TS325_OD_2025-11-20_laserday_s01_113046",
+  "identity": {
+    "source": "G:\\OCT_TreeShrew\\OCTA_RawData\\25.11.20 TS325 LASER DAY\\TS325M-R1_11_30_46_512_512_Rect_X500um_Y500um_RPE_OCTA_Processed\\TS325M-R1_11_30_46_512_512_Rect_X500um_Y500um_RPE_processedVolumes.mat",
+    "source_size": 4018921263,
+    "source_mtime_ns": 1767977302000000000,
+    "retina_band": [
+      0,
+      427
+    ],
+    "code_hashes": {
+      "vasculature_baseline.py": "33f070f9b2c4fcb121c931ec84ebd5e8d7c30a3c0b0fdf5d21ed09d26b76b273",
+      "vasculature_shape_gate.py": "3f75abe87a8d8df3b782db3a1d0eb074052b0be0378c10662f7ff60f3ad8d9f0"
+    },
+    "threshold": 0.18,
+    "parameters": {
+      "min_area": 600,
+      "min_length": 80.0,
+      "min_width": 6.0,
+      "min_slenderness": 5.0,
+      "min_terminal_length": 35.0
+    },
+    "onh_label_sha256": null,
+    "original_proposal_sha256": null
+  },
+  "status": "complete",
+  "vessel_pixels": 26215,
+  "native_shape": [
+    512,
+    512
+  ],
+  "original_queue_exact_match": false,
+  "component_audit": [
+    {
+      "component_id": 1,
+      "bbox": [
+        10,
+        151,
+        367,
+        502
+      ],
+      "input_area_px": 10180,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 10180,
+          "length_px": 513.8204178980352,
+          "median_width_px": 21.2602916254693,
+          "length_to_width": 24.168079485913125,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 2,
+      "bbox": [
+        10,
+        307,
+        101,
+        502
+      ],
+      "input_area_px": 2942,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 2942,
+          "length_px": 220.96551211459405,
+          "median_width_px": 14.422205101855956,
+          "length_to_width": 15.321201616121696,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 3,
+      "bbox": [
+        62,
+        10,
+        453,
+        194
+      ],
+      "input_area_px": 7175,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 7175,
+          "length_px": 450.48737341529295,
+          "median_width_px": 17.08800749063506,
+          "length_to_width": 26.36277949094877,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 4,
+      "bbox": [
+        481,
+        10,
+        502,
+        502
+      ],
+      "input_area_px": 6051,
+      "pruned_terminal_branches": [
+        {
+          "length_px": 4.414213562373095,
+          "median_width_px": 15.231546211727817
+        }
+      ],
+      "components_after_pruning": [
+        {
+          "area_px": 5918,
+          "length_px": 483.04163056034275,
+          "median_width_px": 12.0,
+          "length_to_width": 40.253469213361896,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    }
+  ],
+  "proposal_sha256": "1c92287501115556276c13cd43691957cfb58dfcfd52d0d52ec72352c3d2e5bd",
+  "preview_sha256": "2ff9f9542e90f2e85ac1aeb7feede20a2cb15be31573bd5a061fa67b6a18734a",
+  "seconds": 11.09
+}

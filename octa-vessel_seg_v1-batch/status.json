@@ -1,0 +1,19 @@
+{
+  "status": "complete",
+  "total": 314,
+  "complete": 314,
+  "failed": 0,
+  "original_queue_exact_matches": 32,
+  "threshold": 0.18,
+  "parameters": {
+    "min_area": 600,
+    "min_length": 80.0,
+    "min_width": 6.0,
+    "min_slenderness": 5.0,
+    "min_terminal_length": 35.0
+  },
+  "code_hashes": {
+    "vasculature_baseline.py": "33f070f9b2c4fcb121c931ec84ebd5e8d7c30a3c0b0fdf5d21ed09d26b76b273",
+    "vasculature_shape_gate.py": "3f75abe87a8d8df3b782db3a1d0eb074052b0be0378c10662f7ff60f3ad8d9f0"
+  }
+}

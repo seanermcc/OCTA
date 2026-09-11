@@ -1,0 +1,281 @@
+{
+  "scan_id": "TS247_OD_2024-11-26_D42_s05_115108",
+  "identity": {
+    "source": "G:\\OCT_TreeShrew\\OCTA_RawData\\24.11.26 TS247F CNV D42\\TS247-R5_11_51_08_512_512_Rect_X500um_Y500um_RPE_OCTA_Processed\\TS247-R5_11_51_08_512_512_Rect_X500um_Y500um_RPE_processedVolumes.mat",
+    "source_size": 4017413479,
+    "source_mtime_ns": 1732671196000000000,
+    "retina_band": [
+      21,
+      472
+    ],
+    "code_hashes": {
+      "vasculature_baseline.py": "33f070f9b2c4fcb121c931ec84ebd5e8d7c30a3c0b0fdf5d21ed09d26b76b273",
+      "vasculature_shape_gate.py": "3f75abe87a8d8df3b782db3a1d0eb074052b0be0378c10662f7ff60f3ad8d9f0"
+    },
+    "threshold": 0.18,
+    "parameters": {
+      "min_area": 600,
+      "min_length": 80.0,
+      "min_width": 6.0,
+      "min_slenderness": 5.0,
+      "min_terminal_length": 35.0
+    },
+    "onh_label_sha256": null,
+    "original_proposal_sha256": null
+  },
+  "status": "complete",
+  "vessel_pixels": 29968,
+  "native_shape": [
+    512,
+    512
+  ],
+  "original_queue_exact_match": false,
+  "component_audit": [
+    {
+      "component_id": 1,
+      "bbox": [
+        10,
+        10,
+        36,
+        50
+      ],
+      "input_area_px": 479,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 479,
+          "length_px": 42.627416997969526,
+          "median_width_px": 10.0,
+          "length_to_width": 4.262741699796953,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline",
+            "compact shape"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 2,
+      "bbox": [
+        10,
+        10,
+        190,
+        131
+      ],
+      "input_area_px": 3292,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 3292,
+          "length_px": 222.14927829866784,
+          "median_width_px": 16.1245154965971,
+          "length_to_width": 13.777113386479737,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 3,
+      "bbox": [
+        10,
+        143,
+        502,
+        187
+      ],
+      "input_area_px": 9028,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 9028,
+          "length_px": 484.4264068711931,
+          "median_width_px": 18.0,
+          "length_to_width": 26.912578159510726,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 4,
+      "bbox": [
+        10,
+        176,
+        502,
+        477
+      ],
+      "input_area_px": 14430,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 14430,
+          "length_px": 603.979797464469,
+          "median_width_px": 26.0,
+          "length_to_width": 23.229992210171886,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 5,
+      "bbox": [
+        10,
+        320,
+        113,
+        502
+      ],
+      "input_area_px": 3218,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 3218,
+          "length_px": 215.5218613006981,
+          "median_width_px": 16.308468999533872,
+          "length_to_width": 13.215333781905471,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 6,
+      "bbox": [
+        180,
+        442,
+        192,
+        465
+      ],
+      "input_area_px": 161,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 161,
+          "length_px": 18.656854249492383,
+          "median_width_px": 7.60555127546399,
+          "length_to_width": 2.4530574541888406,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline",
+            "compact shape"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 7,
+      "bbox": [
+        189,
+        355,
+        205,
+        382
+      ],
+      "input_area_px": 151,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 151,
+          "length_px": 26.142135623730955,
+          "median_width_px": 4.47213595499958,
+          "length_to_width": 5.845559233168127,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline",
+            "thin band"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 8,
+      "bbox": [
+        309,
+        250,
+        349,
+        296
+      ],
+      "input_area_px": 545,
+      "pruned_terminal_branches": [
+        {
+          "length_px": 10.65685424949238,
+          "median_width_px": 7.211102550927978
+        }
+      ],
+      "components_after_pruning": [
+        {
+          "area_px": 464,
+          "length_px": 53.94112549695426,
+          "median_width_px": 7.211102550927978,
+          "length_to_width": 7.4802882244425595,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 9,
+      "bbox": [
+        321,
+        61,
+        359,
+        96
+      ],
+      "input_area_px": 832,
+      "pruned_terminal_branches": [
+        {
+          "length_px": 12.485281374238571,
+          "median_width_px": 18.439088914585774
+        }
+      ],
+      "components_after_pruning": [
+        {
+          "area_px": 551,
+          "length_px": 41.31370849898477,
+          "median_width_px": 12.0,
+          "length_to_width": 3.442809041582064,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline",
+            "compact shape"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 10,
+      "bbox": [
+        477,
+        10,
+        502,
+        37
+      ],
+      "input_area_px": 366,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 366,
+          "length_px": 32.55634918610405,
+          "median_width_px": 10.0,
+          "length_to_width": 3.255634918610405,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline",
+            "compact shape"
+          ]
+        }
+      ]
+    }
+  ],
+  "proposal_sha256": "54fc1deeef9b7834328cecf41533b9721042183a1fcaac2e579075776c319182",
+  "preview_sha256": "bbd736d4754202370d2b7ae5b5d0d5a38e5af8a344b50440bdc46946215c3cbf",
+  "seconds": 11.28
+}

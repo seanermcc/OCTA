@@ -1,7 +1,66 @@
 # OCT-A tree shrew CNV analysis pipeline
 
+**Preliminary ONH atlas implementation (2026-09-11):** `code/control_map_v1`
+reads the completed octa-thick exports to construct per-eye A/B maps, an
+animal-balanced composite, and vessel-registered repeated-tissue summaries.
+It normally requires the full batch's `FINAL_VERIFIED.json`. The user authorized
+proceeding without the batch audit on 2026-09-11; `--skip-batch-audit` records that
+choice and retains per-export integrity checks. Configuration, launchers, provenance, and the
+single numbered figure directory live in
+[control_map_v1](outputs/octa-seg/octa-seg_v1/control_map_v1/README.md).
+Measurements and automatic localization/exclusion proposals remain preliminary.
+
+**CNV analysis v1 (2026-09-11):** the resumable manual-mask spatial and
+longitudinal workflow is implemented in `code/cnv_analysis_v1`, with its own
+[output folder and guide](outputs/octa-seg/octa-seg_v1/cnv_analysis_v1/START_HERE.md).
+The user authorized proceeding without the final batch audit on 2026-09-11;
+that override is recorded in the analysis configuration. Inventory,
+synthetic verification, and bounded real-data checks are separate from final
+cohort results. The workflow retains experimental thickness status, explicit
+registration review, and a separate future automatic-mask release.
+
+**Longitudinal assessment completed (2026-09-10):** TS267 and TS328 have a separate
+22-acquisition selection covering all available visits, with 44 verified v1/v2
+exports and octa-thick launchers. Run `outputs\longitudinal_assessment\PROCESS_LONGITUDINAL.cmd` to process
+or resume this group. See [the longitudinal guide](outputs/longitudinal_assessment/START_HERE.md)
+and its `status.json` for progress; the original ten-volume assessment is separate.
+
+**Six-volume quality pilot (2026-09-10):** the unchanged octa-seg_v1 model now has
+complete exports for the two requested new acquisitions, alongside comparable
+pre-human results for the original four. The separate
+[pilot report](outputs/octa-seg/quality_pilot_20260910/START_HERE.md) includes
+48 boundary maps, thickness/entropy/spike diagnostics and a 24-strip Good/Bad/Unsure
+review launcher. Human regional assessment is pending; ratings are isolated from
+training annotations and the frozen v1 release.
+
+**octa-seg_v1 (2026-09-10):** the versioned boundary family now includes separate
+traceability/reliability learning, per-boundary withholding, and isolated
+contextual estimates. Its learned reporting states fail animal-excluded
+validation, so this is an **experimental review workflow**, not a validated
+measurement model. See [START_HERE](outputs/octa-seg/octa-seg_v1/START_HERE.md)
+for the four complete volumes, 30-example CNV review queue, evidence audit,
+calibration, and limitations. Open the queue using
+`outputs\octa-seg\octa-seg_v1\OPEN_OCTA_SEG_V1.cmd`. Future feedback is stored
+separately for v2; generic acceptance does not approve uncertain estimates.
+
 Automated retinal layer segmentation and thickness mapping for the tree shrew
 CNV (AMD model) OCT-A dataset.
+
+**Major-vessel pilot (2026-09-09):** a classical contrast-and-shape baseline
+produced six experimental en-face proposals, using two new vessel brush masks
+from TS165 for development. It recovers major trunks but still confuses image
+seams and lesion artifacts with vessels; it is not ready for unattended use.
+Human labels are unchanged. See the
+[six-scan comparison and labeling recommendation](outputs/vasculature_baseline/20260909_major_vessels/START_HERE.md).
+The follow-up [continuous-band shape gate](outputs/vasculature_baseline/20260909_major_vessels_shape_gate/START_HERE.md)
+removes small/compact regions on those same six proposals. It improves precision
+with a small recall tradeoff; long image seams and some elongated artifacts remain.
+The [32-scan editing queue](outputs/vasculature_baseline/20260909_queue32/START_HERE.md)
+is now prepared for GUI correction: automatic masks preload where no vessel work
+has been saved, and existing manual masks and drafts take priority. At preparation,
+three vessel masks were already saved and 29 scans needed review. Open
+`python code/open_enface_vessels.py` after activating `octa` to resume at the first
+unfinished vessel mask.
 
 ## Repository scope
 
@@ -211,6 +270,7 @@ cd /d G:\OCT_TreeShrew\octa\code
 | Build a human-review pack | `python review_surfaces.py pack --npz "<segmented>.npz" --n 12` |
 | Build packs for a whole folder | `python review_surfaces.py pack --all ..\outputs\segment_v2 --n 6` |
 | Correct surfaces by hand | `python label_gui.py ..\outputs\review` |
+| En-face masks + linked surface review | `python eight_surface\cnv_gui.py ..\outputs\eight_surface\segmented` |
 | Refit priors from corrections | `python review_surfaces.py refit --labels ..\outputs\labels` |
 | Rebuild the index | `python index_scans.py --root "G:\OCT_TreeShrew\OCTA_RawData" --out "..\outputs\scan_index.csv"` |
 | Pull a working sample | `python export_sample.py --volumes "<...processedVolumes.mat>" --slab --aline-stride 2 --out "..\outputs\samples\<name>.npz"` |

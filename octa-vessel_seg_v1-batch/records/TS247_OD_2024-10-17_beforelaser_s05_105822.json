@@ -1,0 +1,170 @@
+{
+  "scan_id": "TS247_OD_2024-10-17_beforelaser_s05_105822",
+  "identity": {
+    "source": "G:\\OCT_TreeShrew\\OCTA_RawData\\24.10.17 TS247F before and after laser\\TS247F-R5_10_58_22_512_512_Rect_X500um_Y500um_RPE_OCTA_Processed\\TS247F-R5_10_58_22_512_512_Rect_X500um_Y500um_RPE_processedVolumes.mat",
+    "source_size": 4025169290,
+    "source_mtime_ns": 1729222946000000000,
+    "retina_band": [
+      65,
+      442
+    ],
+    "code_hashes": {
+      "vasculature_baseline.py": "33f070f9b2c4fcb121c931ec84ebd5e8d7c30a3c0b0fdf5d21ed09d26b76b273",
+      "vasculature_shape_gate.py": "3f75abe87a8d8df3b782db3a1d0eb074052b0be0378c10662f7ff60f3ad8d9f0"
+    },
+    "threshold": 0.18,
+    "parameters": {
+      "min_area": 600,
+      "min_length": 80.0,
+      "min_width": 6.0,
+      "min_slenderness": 5.0,
+      "min_terminal_length": 35.0
+    },
+    "onh_label_sha256": null,
+    "original_proposal_sha256": null
+  },
+  "status": "complete",
+  "vessel_pixels": 38769,
+  "native_shape": [
+    512,
+    512
+  ],
+  "original_queue_exact_match": false,
+  "component_audit": [
+    {
+      "component_id": 1,
+      "bbox": [
+        10,
+        10,
+        172,
+        70
+      ],
+      "input_area_px": 1703,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 1703,
+          "length_px": 175.53910524340102,
+          "median_width_px": 10.0,
+          "length_to_width": 17.553910524340104,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 2,
+      "bbox": [
+        10,
+        10,
+        200,
+        166
+      ],
+      "input_area_px": 2831,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 2831,
+          "length_px": 249.81832585698012,
+          "median_width_px": 11.8309518948453,
+          "length_to_width": 21.115657309520884,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 3,
+      "bbox": [
+        10,
+        10,
+        486,
+        502
+      ],
+      "input_area_px": 30385,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 30385,
+          "length_px": 1119.7686860699275,
+          "median_width_px": 18.867962264113206,
+          "length_to_width": 59.347621666581524,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 4,
+      "bbox": [
+        321,
+        10,
+        502,
+        158
+      ],
+      "input_area_px": 3850,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 3850,
+          "length_px": 236.3330444827415,
+          "median_width_px": 18.439088914585774,
+          "length_to_width": 12.816958884329487,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 5,
+      "bbox": [
+        418,
+        10,
+        502,
+        32
+      ],
+      "input_area_px": 846,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 846,
+          "length_px": 77.55634918610403,
+          "median_width_px": 9.47213595499958,
+          "length_to_width": 8.18784163936839,
+          "kept": false,
+          "rejection_reasons": [
+            "short centerline"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 6,
+      "bbox": [
+        483,
+        461,
+        502,
+        502
+      ],
+      "input_area_px": 464,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 464,
+          "length_px": 34.89949493661166,
+          "median_width_px": 12.0,
+          "length_to_width": 2.9082912447176383,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline",
+            "compact shape"
+          ]
+        }
+      ]
+    }
+  ],
+  "proposal_sha256": "6471ed4281a2fcbb92e47df5c9cdc6201cfd81ae39df73e5368eb50d7c24ad45",
+  "preview_sha256": "1593cf6cd6fcc72443f347048bd0f75177f2fe632d213ed98abee8cb692bcc50",
+  "seconds": 10.38
+}

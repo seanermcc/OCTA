@@ -1,0 +1,159 @@
+{
+  "scan_id": "TS325_OD_2026-05-26_6mo_s02_114131",
+  "identity": {
+    "source": "G:\\OCT_TreeShrew\\OCTA_RawData\\26.05.26 TS325m cnv 6mo\\New folder\\TS325M-R2_11_41_31_512_512_Rect_X500um_Y500um_RPE_OCTA_Processed\\TS325M-R2_11_41_31_512_512_Rect_X500um_Y500um_RPE_processedVolumes.mat",
+    "source_size": 4017840035,
+    "source_mtime_ns": 1780439060000000000,
+    "retina_band": [
+      0,
+      467
+    ],
+    "code_hashes": {
+      "vasculature_baseline.py": "33f070f9b2c4fcb121c931ec84ebd5e8d7c30a3c0b0fdf5d21ed09d26b76b273",
+      "vasculature_shape_gate.py": "3f75abe87a8d8df3b782db3a1d0eb074052b0be0378c10662f7ff60f3ad8d9f0"
+    },
+    "threshold": 0.18,
+    "parameters": {
+      "min_area": 600,
+      "min_length": 80.0,
+      "min_width": 6.0,
+      "min_slenderness": 5.0,
+      "min_terminal_length": 35.0
+    },
+    "onh_label_sha256": null,
+    "original_proposal_sha256": null
+  },
+  "status": "complete",
+  "vessel_pixels": 32622,
+  "native_shape": [
+    512,
+    512
+  ],
+  "original_queue_exact_match": false,
+  "component_audit": [
+    {
+      "component_id": 1,
+      "bbox": [
+        10,
+        10,
+        31,
+        33
+      ],
+      "input_area_px": 240,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 240,
+          "length_px": 22.55634918610405,
+          "median_width_px": 8.0,
+          "length_to_width": 2.8195436482630063,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline",
+            "compact shape"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 2,
+      "bbox": [
+        10,
+        10,
+        173,
+        307
+      ],
+      "input_area_px": 5586,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 5586,
+          "length_px": 350.9604614807115,
+          "median_width_px": 17.08800749063506,
+          "length_to_width": 20.538407516092935,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 3,
+      "bbox": [
+        107,
+        416,
+        144,
+        431
+      ],
+      "input_area_px": 187,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 187,
+          "length_px": 31.313708498984763,
+          "median_width_px": 5.656854249492381,
+          "length_to_width": 5.535533905932738,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline",
+            "thin band"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 4,
+      "bbox": [
+        148,
+        427,
+        200,
+        436
+      ],
+      "input_area_px": 282,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 282,
+          "length_px": 45.07106781186547,
+          "median_width_px": 6.0,
+          "length_to_width": 7.511844635310911,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 5,
+      "bbox": [
+        219,
+        10,
+        502,
+        502
+      ],
+      "input_area_px": 27119,
+      "pruned_terminal_branches": [
+        {
+          "length_px": 6.414213562373095,
+          "median_width_px": 10.0
+        }
+      ],
+      "components_after_pruning": [
+        {
+          "area_px": 27036,
+          "length_px": 1018.7888886054582,
+          "median_width_px": 18.867962264113206,
+          "length_to_width": 53.99570310479107,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    }
+  ],
+  "proposal_sha256": "73fc64e0d952c587f5170b9cd797f8f6b9a2d214aab9a92a9804427e7b9a3395",
+  "preview_sha256": "b552d6384750da0651e41d8caec1f1bb8b8bde091c1b278001887b09eda70a89",
+  "seconds": 12.77
+}

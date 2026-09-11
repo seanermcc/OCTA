@@ -1,5 +1,19 @@
 # How the pipeline works, stage by stage
 
+The versioned `code/octa_seg_v1` implementation adds a boundary-specific
+reporting stage to the updated U-Net. Position targets require exact manual
+stroke provenance. Traceability and reliability targets use explicit saved
+judgments only; unknown reliability stays masked even if a position was drawn.
+Separate animal-excluded models calibrate operating thresholds and evaluate
+reporting errors. The all-label model provides experimental review outputs.
+Reported boundaries and contextual candidates are separate arrays; ordinary
+thickness uses only reported boundaries and remains NaN across withheld or
+shadowed locations. Registered neighboring slices and lateral anchors constrain
+candidate generation, with no candidates through not-traceable regions.
+All v1 artifacts and the CNV reviewer configuration live under
+`outputs/octa-seg/octa-seg_v1`. Read its `START_HERE.md`: the learned reporting
+states fail validation and are not promoted as reliable measurements.
+
 Each stage below says **what** it does, **how** it does it, and **why that way** —
 the "why" matters most, because several of these choices were made after a
 simpler approach failed on this specific dataset.
@@ -266,6 +280,16 @@ and the retired v1/v2 `quality_confidence` history are in
 
 ## Stage 8 — Human review (`review_surfaces.py`, `label_gui.py`)
 
+En-face vessel review now has 32 separate automatic proposals in
+`outputs/eight_surface/vasculature_proposals/`. The en-face GUI preloads them only
+when that vessel class has no saved work. Format-4 en-face annotations preserve
+the initial automatic mask, its path/hash, the human brush footprint and the
+explicit class-review flag; painting part of an automatic mask does not mark the
+whole class reviewed. Saved manual masks, reviewed absence and unfinished drafts
+all take priority on reopening. CNV/ONH contents and B-scan surface labels follow
+their existing workflows. See the
+[queue report](outputs/vasculature_baseline/20260909_queue32/START_HERE.md).
+
 **What.** Turn the automatic output into ground truth for the B-scans where it
 cannot be trusted, and measure how much that costs.
 
@@ -375,13 +399,47 @@ labels. Shadowed and withheld thicknesses remain NaN; outer quantities outside
 the inner-retina experiment are explicitly unreliable. Acquisition QC remains
 separate from this review priority.
 
+## CNV spatial and longitudinal analysis (`cnv_analysis_v1`)
+
+`python -m cnv_analysis_v1 inventory|register|measure|figures|run` provides a
+separate analysis release under `outputs/octa-seg/octa-seg_v1/cnv_analysis_v1`.
+The batch's `FINAL_VERIFIED.json` gates final measurement. Existing manual CNV
+outlines and later classifications are read with revision provenance; explicit
+Normal/Other classifications override inherited outlines. No annotation writer
+is called. Thickness is frozen from the exact octa-thick `exclude_unreliable_um`
+policy, with its experimental status and NaNs preserved.
+
+Distances use physical pixel rectangles and each actual lesion outline, with
+interior plus six half-diameter outward bands. FOV and measurement coverage have
+separate denominators. Physical rigid registration proposals, ONH localization,
+identity review, fixed/changing longitudinal regions, equal-animal summaries,
+bootstrap intervals, figures, captions, and numerical provenance are isolated
+from segmentation inputs. See the package/output guides for review schemas,
+resume rules, and the independently gated future v2 automatic-core release.
+
+## Preliminary ONH-centered atlas (`code/control_map_v1`)
+
+The read-only atlas workflow consumes completed octa-thick
+`exclude_unreliable_um` exports after the batch's successful
+`FINAL_VERIFIED.json` by default. The explicitly authorized `--skip-batch-audit`
+run omits that cohort audit, records the omission, and retains per-export checks.
+It preserves eight measurements, native geometry, shadow
+NaNs, human exclusions, and source fingerprints. Full retina is ILM→RPE;
+the photoreceptor composite includes ONL.
+
+Visible ONH edges, verified rigid vessel registration, and independent branch
+convergence provide a localization hierarchy with unresolved outcomes. Automatic
+CNV candidates and saved outlines receive maximum-Feret-diameter clearance;
+vessels and sized ONH receive half-diameter clearance. Version B additionally
+uses a masked 500 µm diameter local full-retina median/MAD screen. Per-date,
+per-eye, per-animal, and equal-animal cohort summaries remain distinct from
+vessel-supported repeated-tissue variation. All settings are exploratory.
+
+See the [atlas guide](outputs/octa-seg/octa-seg_v1/control_map_v1/README.md)
+for stage resume, coordinate conventions, validation, and numbered figures.
+Anatomical orientation is provisional; area centralis localization is not built.
+
 ## Not yet built
-
-**ONH, eccentricity, area centralis.** Needs montaging — the ONH is outside the
-~1460 µm field in many scans.
-
-**Lesion detection.** A CNV lesion is local RPE elevation with outer-retinal
-disruption, which should be a distinctive signature in a thickness map.
 
 **Classical learned boundary cost.** An unimplemented alternative to Stage A.
 `build_costs()` → `SURFACE_COST` → `banded_dp` already isolates the one

@@ -1,0 +1,174 @@
+{
+  "scan_id": "TS267_OS_2025-03-26_D35_s03_104415",
+  "identity": {
+    "source": "G:\\OCT_TreeShrew\\OCTA_RawData\\25.03.26 TS267F CNV D35\\New folder\\TS267F-L3_10_44_15_512_512_Rect_X500um_Y500um_RPE_OCTA_Processed\\TS267F-L3_10_44_15_512_512_Rect_X500um_Y500um_RPE_processedVolumes.mat",
+    "source_size": 4019686336,
+    "source_mtime_ns": 1743026974000000000,
+    "retina_band": [
+      0,
+      378
+    ],
+    "code_hashes": {
+      "vasculature_baseline.py": "33f070f9b2c4fcb121c931ec84ebd5e8d7c30a3c0b0fdf5d21ed09d26b76b273",
+      "vasculature_shape_gate.py": "3f75abe87a8d8df3b782db3a1d0eb074052b0be0378c10662f7ff60f3ad8d9f0"
+    },
+    "threshold": 0.18,
+    "parameters": {
+      "min_area": 600,
+      "min_length": 80.0,
+      "min_width": 6.0,
+      "min_slenderness": 5.0,
+      "min_terminal_length": 35.0
+    },
+    "onh_label_sha256": null,
+    "original_proposal_sha256": null
+  },
+  "status": "complete",
+  "vessel_pixels": 25613,
+  "native_shape": [
+    512,
+    512
+  ],
+  "original_queue_exact_match": false,
+  "component_audit": [
+    {
+      "component_id": 1,
+      "bbox": [
+        10,
+        10,
+        337,
+        168
+      ],
+      "input_area_px": 6108,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 6108,
+          "length_px": 384.8893936688461,
+          "median_width_px": 17.08800749063506,
+          "length_to_width": 22.52394808931243,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 2,
+      "bbox": [
+        10,
+        226,
+        502,
+        285
+      ],
+      "input_area_px": 11252,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 11252,
+          "length_px": 507.5096679918786,
+          "median_width_px": 22.090722034374522,
+          "length_to_width": 22.973883207717808,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 3,
+      "bbox": [
+        10,
+        380,
+        502,
+        502
+      ],
+      "input_area_px": 8253,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 8253,
+          "length_px": 526.1492782986685,
+          "median_width_px": 17.08800749063506,
+          "length_to_width": 30.790557564246164,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 4,
+      "bbox": [
+        15,
+        10,
+        53,
+        45
+      ],
+      "input_area_px": 648,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 648,
+          "length_px": 47.45584412271571,
+          "median_width_px": 12.0,
+          "length_to_width": 3.954653676892976,
+          "kept": false,
+          "rejection_reasons": [
+            "short centerline",
+            "compact shape"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 5,
+      "bbox": [
+        264,
+        159,
+        280,
+        209
+      ],
+      "input_area_px": 285,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 285,
+          "length_px": 48.55634918610404,
+          "median_width_px": 6.0,
+          "length_to_width": 8.092724864350673,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 6,
+      "bbox": [
+        339,
+        10,
+        385,
+        36
+      ],
+      "input_area_px": 221,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 221,
+          "length_px": 46.284271247461895,
+          "median_width_px": 4.47213595499958,
+          "length_to_width": 10.349477679836378,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline",
+            "thin band"
+          ]
+        }
+      ]
+    }
+  ],
+  "proposal_sha256": "6e6ec1019103fbafa6d8e0c7f8d0d49c5c9b340395277e3c230048f58b698563",
+  "preview_sha256": "dc23fe13ad3c6b429554c781862e346ebd8f3ba949c5be62555dc16ef7a66a2d",
+  "seconds": 11.16
+}

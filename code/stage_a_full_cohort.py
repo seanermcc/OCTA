@@ -55,18 +55,37 @@ def build(args):
     source = copy.deepcopy(old["sources"])
     targets_dir, cache_dir = output_dir(out / "targets"), output_dir(out / "cache")
     records, entries, audit = [], {}, []
+    # Start with the frozen cohort and let an explicitly supplied review folder
+    # replace matching scan/B-scan decisions.  This is deliberately keyed by
+    # identity rather than by filename concatenation: a second decision for a
+    # B-scan supersedes the earlier one but remains traceable in the audit.
+    old_label_paths = {r["key"]: Path(r["label"]["path"]) for r in old["records"]}
+    selected = dict(old_label_paths)
+    supplied = set()
+    for folder in args.labels:
+        for path in folder.glob("*.npz"):
+            label = load_label(path)
+            key = f"{label['scan_id']}_b{label['bscan']:04d}"
+            selected[key] = path
+            supplied.add(key)
     packs = {}
-    for path in sorted(args.labels.glob("*.npz")):
+    for key, path in sorted(selected.items()):
         label_fp = fingerprint(path)
         label = load_label(path)
         sid, b = label["scan_id"], label["bscan"]
-        key = f"{sid}_b{b:04d}"
+        if key != f"{sid}_b{b:04d}":
+            raise AssertionError("Label identity changed while importing")
         if sid not in source:
             raise ValueError(f"New source volume needs geometry verification: {sid}")
         src = source[sid]
         height = src["label_band"][1] - src["label_band"][0]
         former = by_key.get(key)
-        if former:
+        # New reviews (including an update to a previously frozen decision)
+        # are mapped again from raw image coordinates.  Older frozen labels
+        # retain their verified cached image identity without a needless 2 GB
+        # reread per source volume.
+        refresh_geometry = key in supplied
+        if former and not refresh_geometry:
             verify(former["label"])
             old_entry = old_cache["entries"][key]
             verify(old_entry["file"]); verify(former["targets_fingerprint"])
@@ -77,10 +96,6 @@ def build(args):
             record = copy.deepcopy(former)
             image_provenance = {"original_cache": old_entry["file"], "original_cache_key": old_entry["cache_key"]}
         else:
-            matches = list((OUT / "eight_surface").glob(f"*/{Path(label['source_pack']).name}"))
-            if len(matches) != 1:
-                raise ValueError(f"New manual label requires one identifiable source pack: {key}")
-            pack_path = matches[0]
             verify(src["source"])
             if sid not in packs:
                 # One bulk read also derives orientation afresh; no trusted old
@@ -92,13 +107,24 @@ def build(args):
             full, vhi = packs[sid]
             offset = label_offset(src["label_band"], full.shape[2], vhi)
             x, db, norm = preprocess(full[b], vhi)
+            # Review packs are versioned in several output folders.  Select
+            # only a pack whose recorded pixels exactly match freshly decoded
+            # native coordinates; do not infer orientation from stale labels.
+            matches = []
+            for candidate in OUT.rglob(Path(label["source_pack"]).name):
+                try:
+                    with np.load(candidate, allow_pickle=False) as d:
+                        indices = np.flatnonzero(d["bscan_index"] == b)
+                        if len(indices) == 1 and np.array_equal(db[offset:offset + height], d["images"][int(indices[0])]):
+                            matches.append(candidate)
+                except (KeyError, OSError, ValueError):
+                    continue
+            if not matches:
+                raise ValueError(f"New manual label has no pixel-aligned source pack: {key}")
+            pack_path = sorted(matches, key=lambda p: str(p))[0]
             pack_fp = fingerprint(pack_path)
             with np.load(pack_path, allow_pickle=False) as d:
-                indices = np.flatnonzero(d["bscan_index"] == b)
-                if len(indices) != 1:
-                    raise ValueError("Manual source pack has no unique matching B-scan")
-                i = int(indices[0]); shadow = d["shadow"][i]
-                np.testing.assert_array_equal(db[offset:offset + height], d["images"][i])
+                i = int(np.flatnonzero(d["bscan_index"] == b)[0]); shadow = d["shadow"][i]
             with np.load(src["scope_path"], allow_pickle=False) as d:
                 original_scope = d["allowed"][b]
             record = dict(key=key, scan_id=sid, bscan=b, animal=src["metadata"]["animal"],
@@ -128,10 +154,11 @@ def build(args):
             local_provenance_available=bool(label.get("local_provenance_available")),
             legacy_provenance="exact_local_strokes" if label.get("local_provenance_available") else "surface_wide_edit_only_local_strokes_unknown",
             original_stage_a_eligible=bool(former and former["eligible"]),
-            seconds_active=label.get("seconds_active"), n_strokes=label.get("n_strokes"))
+            seconds_active=label.get("seconds_active"), n_strokes=label.get("n_strokes"),
+            source_decision="new_review" if key in supplied else "frozen_original")
         record.pop("reason_counts", None)
         records.append(record)
-        audit.append(dict(key=key, animal=record["animal"], verdict=label["verdict"],
+        audit.append(dict(key=key, animal=record["animal"], verdict=label["verdict"], source_decision=record["source_decision"],
             manual_inner_columns=int(valid[:4].sum()), manual_all_columns=int(valid.sum()),
             original_scope_inner_columns=int((valid[:4] & original_scope).sum()),
             local_stroke_provenance=record["local_provenance_available"],
@@ -170,6 +197,7 @@ def build(args):
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--original", type=Path, default=DEFAULT)
-    p.add_argument("--labels", type=Path, default=OUT / "eight_surface/labels")
+    p.add_argument("--labels", type=Path, nargs="+", default=[],
+                   help="One or more review-label folders; decisions replace frozen records by scan/B-scan identity")
     p.add_argument("--out", type=Path, required=True)
     build(p.parse_args())

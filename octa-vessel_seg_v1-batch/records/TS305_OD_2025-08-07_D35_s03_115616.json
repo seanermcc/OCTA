@@ -1,0 +1,251 @@
+{
+  "scan_id": "TS305_OD_2025-08-07_D35_s03_115616",
+  "identity": {
+    "source": "G:\\OCT_TreeShrew\\OCTA_RawData\\25.08.07 TS305M CNV D35\\TS305M-R3_11_56_16_512_512_Rect_X500um_Y500um_RPE_OCTA_Processed\\TS305M-R3_11_56_16_512_512_Rect_X500um_Y500um_RPE_processedVolumes.mat",
+    "source_size": 4023193505,
+    "source_mtime_ns": 1754714094000000000,
+    "retina_band": [
+      0,
+      411
+    ],
+    "code_hashes": {
+      "vasculature_baseline.py": "33f070f9b2c4fcb121c931ec84ebd5e8d7c30a3c0b0fdf5d21ed09d26b76b273",
+      "vasculature_shape_gate.py": "3f75abe87a8d8df3b782db3a1d0eb074052b0be0378c10662f7ff60f3ad8d9f0"
+    },
+    "threshold": 0.18,
+    "parameters": {
+      "min_area": 600,
+      "min_length": 80.0,
+      "min_width": 6.0,
+      "min_slenderness": 5.0,
+      "min_terminal_length": 35.0
+    },
+    "onh_label_sha256": null,
+    "original_proposal_sha256": null
+  },
+  "status": "complete",
+  "vessel_pixels": 27551,
+  "native_shape": [
+    512,
+    512
+  ],
+  "original_queue_exact_match": false,
+  "component_audit": [
+    {
+      "component_id": 1,
+      "bbox": [
+        10,
+        10,
+        502,
+        502
+      ],
+      "input_area_px": 21552,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 21552,
+          "length_px": 1112.7737367038098,
+          "median_width_px": 18.439088914585774,
+          "length_to_width": 60.34862903793356,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 2,
+      "bbox": [
+        10,
+        270,
+        53,
+        502
+      ],
+      "input_area_px": 3709,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 3709,
+          "length_px": 232.84062043356602,
+          "median_width_px": 18.0,
+          "length_to_width": 12.935590024087,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 3,
+      "bbox": [
+        10,
+        455,
+        17,
+        502
+      ],
+      "input_area_px": 268,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 268,
+          "length_px": 39.41421356237309,
+          "median_width_px": 6.0,
+          "length_to_width": 6.569035593728849,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 4,
+      "bbox": [
+        138,
+        429,
+        145,
+        465
+      ],
+      "input_area_px": 172,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 172,
+          "length_px": 29.82842712474619,
+          "median_width_px": 6.0,
+          "length_to_width": 4.971404520791032,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline",
+            "compact shape"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 5,
+      "bbox": [
+        148,
+        459,
+        167,
+        494
+      ],
+      "input_area_px": 290,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 290,
+          "length_px": 31.313708498984766,
+          "median_width_px": 8.0,
+          "length_to_width": 3.914213562373096,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline",
+            "compact shape"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 6,
+      "bbox": [
+        185,
+        304,
+        283,
+        336
+      ],
+      "input_area_px": 733,
+      "pruned_terminal_branches": [
+        {
+          "length_px": 4.82842712474619,
+          "median_width_px": 8.0
+        }
+      ],
+      "components_after_pruning": [
+        {
+          "area_px": 676,
+          "length_px": 100.76955262170043,
+          "median_width_px": 6.324555320336759,
+          "length_to_width": 15.93306525403826,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 7,
+      "bbox": [
+        287,
+        181,
+        315,
+        207
+      ],
+      "input_area_px": 171,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 171,
+          "length_px": 33.041630560342625,
+          "median_width_px": 5.656854249492381,
+          "length_to_width": 5.840990257669733,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline",
+            "thin band"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 8,
+      "bbox": [
+        334,
+        37,
+        433,
+        67
+      ],
+      "input_area_px": 1614,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 1614,
+          "length_px": 96.52691193458115,
+          "median_width_px": 17.08800749063506,
+          "length_to_width": 5.6488102540616225,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 9,
+      "bbox": [
+        337,
+        345,
+        349,
+        373
+      ],
+      "input_area_px": 177,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 177,
+          "length_px": 20.65685424949238,
+          "median_width_px": 6.0,
+          "length_to_width": 3.442809041582063,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline",
+            "compact shape"
+          ]
+        }
+      ]
+    }
+  ],
+  "proposal_sha256": "77582b3bf5d0e97c4dae36a150bc78e917de3190deb7d0a6a93f618ccf9ab275",
+  "preview_sha256": "c218a31f84ad8c6c9e82e5d27a5b428247b9bc0a65079f7b178ae95d5d52fed1",
+  "seconds": 13.91
+}

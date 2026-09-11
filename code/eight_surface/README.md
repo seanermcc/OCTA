@@ -60,7 +60,7 @@ This writes `outputs\pre-images_8layer_Gui\` plus a manifest tying each image
 to its pack and B-scan. After manual labels exist, make matched post-manual
 images with `python eight_surface/prepost_images.py post`.
 
-## What the GUI records, and at what scale
+## What the B-scan editor records, and at what scale
 
 Four judgements, deliberately kept apart. Conflating any two of them is how
 this workflow poisons its own training set.
@@ -173,7 +173,7 @@ B-scans in the new GUI and compare `"surface_flag"` supervision against the
 recorded strokes on the same images. Until that is measured, treat any result
 that leans on legacy labels as carrying an unquantified over-claim.
 
-## Downstream
+## B-scan labels downstream
 
 `auto_seg_8layer_v2/unet/targets.py` now masks per boundary **and per A-line**:
 
@@ -217,47 +217,82 @@ The refit consumes only boundaries that were actually redrawn, visible, and
 left included in analysis, excluding hand-marked bad A-lines. It will not learn
 from automatic lines echoed into an accepted label file.
 
-## En-face CNV footprint workflow
+## Integrated en-face labels and segmentation review
 
-CNV footprints are a separate annotation product from retinal surface labels.
-The editor shows only a structural en-face projection, an OCTA en-face
-projection, and the linked structural B-scan. It deliberately does **not** show
-a segmentation-derived RPE elevation or thickness map, so an automatic surface
-error cannot define its own lesion ground truth.
+The en-face masks remain independent of the retinal-surface labels. The editor
+shows structural and OCTA projections plus a linked B-scan at the bottom. The
+bottom panel overlays all eight automated surfaces as dashed colored lines.
+When a saved correction exists, it is shown as a solid line over the unchanged
+automatic baseline.
 
 From `code`, after activating `octa`:
 
 ```powershell
 python eight_surface/cnv_gui.py ..\outputs\eight_surface\segmented `
-  --labels ..\outputs\cnv_labels
+  --labels ..\outputs\cnv_labels `
+  --surface-labels ..\outputs\eight_surface\labels
 ```
 
 The two en-face panels share native `[B-scan, A-line]` coordinates. In
-**Navigate** mode, click either panel to update the structural B-scan below it.
-For **Draw CNV**, hold the left mouse button and trace a lesion outline;
-releasing the button automatically closes the contour, applies light smoothing,
-and fills the footprint. **Erase CNV** uses the same freehand closed contour.
+**Navigate** mode, click either panel to update the B-scan, use the row slider,
+or press Page Up/Page Down. Double-click the bottom B-scan (or use
+`Check/correct this B-scan`) to open just that row in the established manual
+editor. Acceptance, correction strokes, visibility/reliability marks, and
+B-scan exclusions are therefore saved by `label_gui.py` with their normal
+provenance. One-line packs are retained in
+`outputs/eight_surface/enface_line_review/` so a surface label's source-pack
+reference is not disposable.
 
-**Draw ONH edge** is deliberately an open freehand line: trace the visible
-retinal/ONH border and release. This supports an ONH entering from the image
-edge without fabricating a closed ONH region. The green line is saved as an
-independent native-grid `onh_edge_mask`; it is not a CNV mask and it does not
-affect lesion-centred pack selection. Use **Erase ONH edge** to remove part of
-a trace. CNV is red; ONH edge is green. The structural and OCTA en-face panels
-also have separate brightness and contrast controls in the right panel. They
-change the display only, never the underlying image data or annotations.
+The en-face editor stores three distinct area masks:
 
-Right-click cancels an unfinished trace. Ctrl+S saves the scan as reviewed.
-Saving an empty CNV mask explicitly records "reviewed: no CNV footprint"
-rather than leaving the scan undecided.
+| colour | class | tools |
+|---|---|---|
+| red | CNV | closed outline or adjustable round brush |
+| blue | vasculature | adjustable round brush |
+| green | ONH | adjustable round brush |
+
+In a brush mode, left- or right-drag paints and Ctrl+right-drag erases, matching
+the B-scan exclusion/clear gesture. Set the brush-head diameter in the side
+panel; the cursor circle previews its native-grid size.
+
+The older one-pixel ONH edge remains visible when a version-2 label is opened,
+but new ONH labels are filled brush masks. No filled area is inferred from a
+legacy edge; use `Old edge` under `Clear a whole mask` to remove it if needed.
+
+Each class has its own `reviewed` checkbox. A checked empty mask means the scan
+was inspected and that class is absent; an unchecked empty mask means nobody
+labelled it. Painting a manually started mask checks the corresponding class.
+When editing an automatic vessel starting mask, explicitly tick `Vasculature
+reviewed` once the full mask has been inspected. Use `Mark all three reviewed`
+only after all three have actually been inspected.
 
 Each `outputs/cnv_labels/<scan_id>_cnv.npz` file uses label format
-`2-enface-footprint-onh-edge` and stores the boolean CNV footprint plus the
-separate boolean ONH-edge trace on the native volume grid, source/projection
-provenance, physical pixel spacing, annotator, timestamp, notes, and a
-monotonically increasing revision. Earlier `1-enface-footprint` files load
-unchanged and are upgraded only when saved again. These files contain no
-surface or thickness arrays and cannot be mistaken for an eight-boundary label.
+`4-enface-vessel-proposals` and stores `cnv_mask`, `vasculature_mask`,
+`onh_mask`, and `reviewed_targets` in `CNV, VASCULATURE, ONH` order, plus the
+existing provenance fields. Version 1, 2 and 3 labels still load. Their CNV review
+status is preserved; a positive legacy ONH edge counts as evidence that ONH
+was inspected, but no legacy empty mask becomes a negative vessel/ONH label.
+En-face files still contain no surfaces or thickness values.
+
+The 32-scan queue now has automatic major-vessel starting masks in
+`outputs/eight_surface/vasculature_proposals`. Open `python open_enface_vessels.py`
+from `code` after activating `octa` to start at the first unfinished vessel review.
+The ordinary `cnv_gui.py` also discovers these proposals automatically.
+Existing manual vessel masks, reviewed empty masks and saved drafts always take
+priority. CNV and ONH annotations retain their existing contents and review flags.
+
+Automatic seeds start unreviewed. Brush changes can be saved as unfinished drafts;
+navigation and closing still save dirty work. Empty drafts are preserved and are
+not refilled from the proposal on reopening. Tick `Vasculature reviewed` and save
+when complete. Format 4 stores the starting-mask path/hash, initial mask and exact
+brush footprint, alongside the review decision, so unchanged automatic pixels are
+distinguishable from painted edits. Undo/redo includes the footprint. Old labels
+do not acquire retrospective brush provenance. The sidebar scrolls on smaller screens.
+
+`prepare_vasculature_queue.py` reproduces the 32 proposals with the approved 0.18
+contrast threshold and unchanged shape gate. It never writes human labels. The
+[queue report](../../outputs/vasculature_baseline/20260909_queue32/START_HERE.md)
+contains the preparation and verification details.
 
 After one or more footprint labels exist, build lesion-centred correction
 packs:

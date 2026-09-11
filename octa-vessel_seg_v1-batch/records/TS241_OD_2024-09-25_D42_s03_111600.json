@@ -1,0 +1,368 @@
+{
+  "scan_id": "TS241_OD_2024-09-25_D42_s03_111600",
+  "identity": {
+    "source": "G:\\OCT_TreeShrew\\OCTA_RawData\\24.09.25 Tree shrew CNV D42\\New folder\\TS241F-R3_11_16_00_512_512_Rect_X500um_Y500um_RPE_OCTA_Processed\\TS241F-R3_11_16_00_512_512_Rect_X500um_Y500um_RPE_processedVolumes.mat",
+    "source_size": 4023149562,
+    "source_mtime_ns": 1727406320000000000,
+    "retina_band": [
+      0,
+      648
+    ],
+    "code_hashes": {
+      "vasculature_baseline.py": "33f070f9b2c4fcb121c931ec84ebd5e8d7c30a3c0b0fdf5d21ed09d26b76b273",
+      "vasculature_shape_gate.py": "3f75abe87a8d8df3b782db3a1d0eb074052b0be0378c10662f7ff60f3ad8d9f0"
+    },
+    "threshold": 0.18,
+    "parameters": {
+      "min_area": 600,
+      "min_length": 80.0,
+      "min_width": 6.0,
+      "min_slenderness": 5.0,
+      "min_terminal_length": 35.0
+    },
+    "onh_label_sha256": null,
+    "original_proposal_sha256": "80edcd0c792af800b9473f7ed65e5003b177051c2fdd4a202282b1fec459683d"
+  },
+  "status": "complete",
+  "vessel_pixels": 25203,
+  "native_shape": [
+    512,
+    512
+  ],
+  "original_queue_exact_match": true,
+  "component_audit": [
+    {
+      "component_id": 1,
+      "bbox": [
+        10,
+        10,
+        36,
+        23
+      ],
+      "input_area_px": 215,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 215,
+          "length_px": 16.242640687119287,
+          "median_width_px": 8.0,
+          "length_to_width": 2.030330085889911,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline",
+            "compact shape"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 2,
+      "bbox": [
+        10,
+        10,
+        166,
+        113
+      ],
+      "input_area_px": 2243,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 2243,
+          "length_px": 192.69343417595192,
+          "median_width_px": 11.661903789690601,
+          "length_to_width": 16.523325663713457,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 3,
+      "bbox": [
+        10,
+        119,
+        85,
+        153
+      ],
+      "input_area_px": 587,
+      "pruned_terminal_branches": [
+        {
+          "length_px": 0.0,
+          "median_width_px": 10.198039027185569
+        }
+      ],
+      "components_after_pruning": [
+        {
+          "area_px": 543,
+          "length_px": 79.52691193458115,
+          "median_width_px": 6.324555320336759,
+          "length_to_width": 12.5743088496452,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 4,
+      "bbox": [
+        10,
+        199,
+        502,
+        263
+      ],
+      "input_area_px": 10836,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 10836,
+          "length_px": 499.6812408671325,
+          "median_width_px": 22.0,
+          "length_to_width": 22.71278367577875,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 5,
+      "bbox": [
+        10,
+        275,
+        484,
+        502
+      ],
+      "input_area_px": 9323,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 9323,
+          "length_px": 565.5706345359789,
+          "median_width_px": 18.439088914585774,
+          "length_to_width": 30.672374169669446,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 6,
+      "bbox": [
+        10,
+        349,
+        90,
+        502
+      ],
+      "input_area_px": 2801,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 2801,
+          "length_px": 178.1665222413705,
+          "median_width_px": 17.88854381999832,
+          "length_to_width": 9.959811376160815,
+          "kept": true,
+          "rejection_reasons": []
+        }
+      ]
+    },
+    {
+      "component_id": 7,
+      "bbox": [
+        75,
+        65,
+        163,
+        87
+      ],
+      "input_area_px": 570,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 570,
+          "length_px": 88.04163056034258,
+          "median_width_px": 6.0,
+          "length_to_width": 14.67360509339043,
+          "kept": false,
+          "rejection_reasons": [
+            "small area"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 8,
+      "bbox": [
+        109,
+        113,
+        149,
+        134
+      ],
+      "input_area_px": 484,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 484,
+          "length_px": 27.65685424949238,
+          "median_width_px": 13.416407864998739,
+          "length_to_width": 2.0614202048556294,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline",
+            "compact shape"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 9,
+      "bbox": [
+        167,
+        25,
+        200,
+        41
+      ],
+      "input_area_px": 275,
+      "pruned_terminal_branches": [
+        {
+          "length_px": 22.071067811865476,
+          "median_width_px": 8.0
+        },
+        {
+          "length_px": 0.0,
+          "median_width_px": 8.246211251235321
+        }
+      ],
+      "components_after_pruning": [
+        {
+          "area_px": 43,
+          "length_px": 7.656854249492381,
+          "median_width_px": 4.0,
+          "length_to_width": 1.9142135623730951,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline",
+            "thin band",
+            "compact shape"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 10,
+      "bbox": [
+        185,
+        95,
+        223,
+        136
+      ],
+      "input_area_px": 750,
+      "pruned_terminal_branches": [
+        {
+          "length_px": 20.071067811865476,
+          "median_width_px": 18.439088914585774
+        },
+        {
+          "length_px": 12.65685424949238,
+          "median_width_px": 5.841619252963779
+        }
+      ],
+      "components_after_pruning": [
+        {
+          "area_px": 266,
+          "length_px": 21.313708498984766,
+          "median_width_px": 8.0,
+          "length_to_width": 2.664213562373096,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline",
+            "compact shape"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 11,
+      "bbox": [
+        241,
+        311,
+        270,
+        337
+      ],
+      "input_area_px": 519,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 519,
+          "length_px": 14.656854249492383,
+          "median_width_px": 14.071067811865476,
+          "length_to_width": 1.041630560342616,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline",
+            "compact shape"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 12,
+      "bbox": [
+        250,
+        123,
+        287,
+        138
+      ],
+      "input_area_px": 351,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 351,
+          "length_px": 26.485281374238575,
+          "median_width_px": 10.0,
+          "length_to_width": 2.6485281374238574,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline",
+            "compact shape"
+          ]
+        }
+      ]
+    },
+    {
+      "component_id": 13,
+      "bbox": [
+        369,
+        170,
+        387,
+        203
+      ],
+      "input_area_px": 179,
+      "pruned_terminal_branches": [],
+      "components_after_pruning": [
+        {
+          "area_px": 179,
+          "length_px": 32.38477631085024,
+          "median_width_px": 5.656854249492381,
+          "length_to_width": 5.724873734152917,
+          "kept": false,
+          "rejection_reasons": [
+            "small area",
+            "short centerline",
+            "thin band"
+          ]
+        }
+      ]
+    }
+  ],
+  "proposal_sha256": "f174b8dedea1ef9deed688765c69dd0d06691d7aef75b4816bf796e1a829cb36",
+  "preview_sha256": "85b742659afb3aee1d46d8f6cd2358bc314acc50758cbd90390a9570ac2102f0",
+  "seconds": 0.78
+}

@@ -142,6 +142,12 @@ def run(args):
         calibration = animals[(i + 1) % len(animals)]
         training = [a for a in animals if a not in (held, calibration)]
         folds.append(dict(held_animal=held, calibration_animal=calibration, training_animals=training))
+    if getattr(args, "held_animals", None):
+        wanted = set(args.held_animals)
+        unknown = wanted - set(animals)
+        if unknown:
+            raise ValueError(f"Unknown held animals: {sorted(unknown)}")
+        folds = [f for f in folds if f["held_animal"] in wanted]
     all_labels = dict(held_animal="ALL_LABELLED", calibration_animal=None, training_animals=animals) if include_all else None
     run_folds = folds + ([all_labels] if all_labels else [])
     released = bool(datasets[0].partitions.get("authorization", {}).get("former_test_animals_released"))
@@ -269,6 +275,7 @@ if __name__ == "__main__":
     p.add_argument("--precision", choices=("float32", "bfloat16"), default="float32")
     p.add_argument("--include-all-labels-model", action="store_true",
                    help="Also train a distinct all-animal model for inference, excluded from accuracy evaluation")
+    p.add_argument("--held-animals", nargs="+", help="Bounded development run: train only these animal-excluded folds")
     p.add_argument("--preload-samples", action="store_true", help="Cache verified CPU samples once for faster local training")
     p.add_argument("--fast-kernels", action="store_true", help="Permit faster CUDA kernels; recorded as non-bitwise-deterministic")
     run(p.parse_args())
