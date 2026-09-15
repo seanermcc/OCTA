@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 from cnv_review_v1.label_gui import BoundaryEditor, curve_path as inherited_curve_path, Qt, QtCore, QtGui, QtWidgets, legacy
 from eight_surface import provenance as P
-from .common import read, write, writable, fingerprint, reviewer_id, CATEGORIES, ROLES
+from .common import V3, read, write, writable, fingerprint, reviewer_id, CATEGORIES, ROLES
 from .feedback import resolve
 from .policy import render
 
@@ -43,10 +43,14 @@ def reviewer_pack_save(pack, i):
 
 class Journal:
     """An authoritative, revisioned journal; compatibility NPZs use Pack.save below."""
-    def __init__(self, path, identity):
+    def __init__(self, path, identity, legacy_path=None, read_only=False):
+        self.read_only = read_only
+        self.identity = identity
         self.path = writable(path)
         self.hash = fingerprint(path)
-        self.data = read(path) if self.hash else dict(format='octa-seg-v3-human-events-1',
+        self.legacy_path = Path(legacy_path) if legacy_path and Path(legacy_path).exists() and not self.hash else None
+        self.legacy_hash = fingerprint(self.legacy_path) if self.legacy_path else None
+        self.data = read(path) if self.hash else read(self.legacy_path) if self.legacy_path else dict(format='octa-seg-v3-human-events-2',
             **identity, revision=0, events=[], cursor=0, active_seconds=0., history=[])
         for key in ('reviewer_id', 'scan_id', 'bscan', 'model_id'):
             if self.data[key] != identity[key]:
@@ -57,13 +61,28 @@ class Journal:
         return self.data['events'][:self.data['cursor']]
 
     def change(self, event=None, direction=0, seconds=0.):
+        if self.read_only:
+            return
+        # Browsing historical work must never turn into adoption through a timer.
+        if self.legacy_path and event is None and direction == 0:
+            return
         if event is None and direction == 0 and (seconds <= 0 or not self.data['events']):
             return
-        proposed = copy.deepcopy(self.data)
+        # Existing events/snapshots are immutable. Copy only the containers we edit.
+        proposed = self.data.copy()
+        proposed['history'] = self.data['history'].copy()
+        if self.identity.get('pinned_data_role'):
+            proposed['pinned_data_role'] = self.identity['pinned_data_role']
+        if self.legacy_path:
+            if fingerprint(self.legacy_path) != self.legacy_hash:
+                raise RuntimeError('Historical review changed in the older GUI. Reopen it before adopting.')
+            proposed['adopted_from'] = dict(path=str(self.legacy_path), sha256=self.legacy_hash,
+                legacy_revision=self.data['revision'], timestamp=time.time(), reason='explicit new GUI edit/confirmation')
+            proposed['format'] = 'octa-seg-v3-human-events-2'
         if event is not None:
             if proposed['cursor'] < len(proposed['events']):
                 proposed['history'].append(dict(action='discarded_redo', events=proposed['events'][proposed['cursor']:]))
-            proposed['events'] = proposed['events'][:proposed['cursor']] + [event]
+            proposed['events'] = proposed['events'][:proposed['cursor']] + [copy.deepcopy(event)]
             proposed['cursor'] = len(proposed['events'])
         else:
             proposed['cursor'] = max(0, min(len(proposed['events']), proposed['cursor'] + direction))
@@ -71,22 +90,23 @@ class Journal:
         proposed['active_seconds'] += max(0., seconds)
         proposed['history'].append(dict(revision=proposed['revision'], timestamp=time.time(), cursor=proposed['cursor'],
             action='event' if event else 'undo' if direction < 0 else 'redo' if direction > 0 else 'active_time'))
-        lock = self.path.with_suffix('.lock')
-        try:
-            fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError:
+        lock = QtCore.QLockFile(str(self.path.with_suffix('.lock')))
+        lock.setStaleLockTime(30000)
+        if not lock.tryLock(0):
             raise RuntimeError('This review is being saved in another window. Your edits remain here.')
         try:
-            os.close(fd)
             if fingerprint(self.path) != self.hash:
                 raise RuntimeError('The saved review changed in another window. Reopen before editing; nothing was overwritten.')
             if self.path.exists():
-                write(self.path.parent / 'history' / f'{self.path.stem}_r{self.data["revision"]}.json', self.data)
-            write(self.path, proposed)
+                write(self.path.parent / 'history' / f'{self.path.stem}_r{self.data["revision"]}.json', self.data, compact=True)
+            elif self.legacy_path:
+                write(self.path.parent / 'history' / f'{self.path.stem}_legacy_original.json', self.data)
+            write(self.path, proposed, compact=True)
             self.hash = fingerprint(self.path)
             self.data = proposed
+            self.legacy_path = None
         finally:
-            lock.unlink(missing_ok=True)
+            lock.unlock()
 
 
 class Editor(BoundaryEditor):
@@ -101,6 +121,9 @@ class Editor(BoundaryEditor):
         self._pending_seconds = 0.
         self.reviewer = reviewer_id(reviewer)
         self.blind = False
+        self.read_only = False
+        self.width = 512
+        self.n_boundaries = 8
         self.pinned_role = None
         super().__init__(output)
         self._loading = False
@@ -120,12 +143,22 @@ class Editor(BoundaryEditor):
         for button in self.body.findChildren(QtWidgets.QToolButton):
             if 'gestures' in button.text():
                 button.hide()
-        self._build_actions()
+        from .controls import build
+        build(self)
         self.canvas.viewport().installEventFilter(self)
         self.canvas.installEventFilter(self)
         self.timer = QtCore.QTimer(self)
-        self.timer.timeout.connect(self._save_clicked)
+        self.timer.timeout.connect(self._save_when_idle)
         self.timer.start(15000)
+        self.compatibility_timer = QtCore.QTimer(self)
+        self.compatibility_timer.setSingleShot(True)
+        self.compatibility_timer.timeout.connect(self._save_when_idle)
+
+    def _save_when_idle(self):
+        if self.canvas._drawing or self.canvas._region_dragging:
+            self.compatibility_timer.start(500)
+            return
+        self._save_clicked()
 
     def fit_image(self):
         super().fit_image()
@@ -134,86 +167,7 @@ class Editor(BoundaryEditor):
             scale = self.canvas.transform().m22()
             stretch = min(1.8, max(1., (self.canvas.viewport().height() - 30) / max(1., height * scale)))
             self.canvas.scale(1., stretch)
-            self.canvas.centerOn(256, height / 2)
-
-    def _build_actions(self):
-        box = QtWidgets.QGroupBox('Boundary review')
-        layout = QtWidgets.QVBoxLayout(box)
-        layout.setSpacing(4)
-        self.auto_pick = QtWidgets.QCheckBox('Pick nearest visible boundary on click')
-        self.auto_pick.setChecked(True)
-        layout.addWidget(self.auto_pick)
-        self.unreliable_draw = QtWidgets.QPushButton()
-        self.unreliable_draw.setCheckable(True)
-        self.unreliable_draw.setToolTip('ON: draw an uncertain best guess. OFF: draw a reliable correction. Only the actual stroke receives your judgment; joins do not.')
-        self.unreliable_draw.toggled.connect(self.update_drawing_mode)
-        layout.addWidget(self.unreliable_draw)
-        self.drawing_mode_hint = QtWidgets.QLabel()
-        self.drawing_mode_hint.setWordWrap(True)
-        layout.addWidget(self.drawing_mode_hint)
-        self.update_drawing_mode()
-        self.show_candidates = QtWidgets.QCheckBox('Show uncertain candidates (dashes)')
-        self.show_candidates.setChecked(True)
-        self.show_candidates.toggled.connect(self.redraw_surfaces)
-        layout.addWidget(self.show_candidates)
-        self.blind_check = QtWidgets.QCheckBox('Draw without model overlay')
-        self.blind_check.toggled.connect(self.set_blind)
-        layout.addWidget(self.blind_check)
-        span = QtWidgets.QHBoxLayout()
-        self.span_lo, self.span_hi = QtWidgets.QSpinBox(), QtWidgets.QSpinBox()
-        self.span_lo.setRange(0, 511)
-        self.span_hi.setRange(1, 512)
-        self.span_hi.setValue(512)
-        span.addWidget(QtWidgets.QLabel('A-lines [start, stop)'))
-        span.addWidget(self.span_lo)
-        span.addWidget(self.span_hi)
-        layout.addLayout(span)
-        self.range_summary = QtWidgets.QLabel()
-        self.range_summary.setWordWrap(True)
-        layout.addWidget(self.range_summary)
-        self.span_lo.valueChanged.connect(self.update_range_summary)
-        self.span_hi.valueChanged.connect(self.update_range_summary)
-        self.update_range_summary()
-        legend = QtWidgets.QLabel('Dashes: uncertain estimates, including model uncertainty. Orange marks: your unreliable regions on the selected boundary.')
-        legend.setWordWrap(True)
-        layout.addWidget(legend)
-        actions = [
-            ('Approve selected range', 'reviewed', 'Explicitly visible and reliable. No manual stroke is invented.'),
-            ('Approve all shown in range', 'review_all', 'Affirms only displayed finite boundaries in this interval.'),
-            ('Not traceable · selected boundary', 'not_traceable', 'Image does not support tracing this boundary; removes the local line.'),
-            ('Absent / interrupted · selected boundary', 'absent', 'Explicit anatomical judgment, distinct from poor visibility.'),
-            ('Clear anatomical-absence mark', 'clear_absence', 'Returns anatomy to unknown; does not affirm traceability.'),
-        ]
-        for title, action, tooltip in actions:
-            button = QtWidgets.QPushButton(title)
-            button.setToolTip(tooltip)
-            button.clicked.connect(lambda checked=False, a=action: self.action(a))
-            layout.addWidget(button)
-        more = QtWidgets.QToolButton()
-        more.setText('More review actions')
-        more.setPopupMode(QtWidgets.QToolButton.ToolButtonPopupMode.InstantPopup)
-        menu = QtWidgets.QMenu(more)
-        for title, action in [('Mark selected range unreliable (keep position)', 'unreliable'),
-                              ('Approve candidate position only', 'approve_position'),
-                              ('Mark all boundaries unreliable in range', 'unreliable_region'),
-                              ('Clear regional reliability mark', 'clear_region'),
-                              ('Exclude image in range', 'exclude_image'),
-                              ('Clear image exclusion in range', 'clear_exclusion'),
-                              ('Clear visibility / reliability marks in range', 'clear_marks'),
-                              ('Reset selected boundary in range', 'reset_boundary')]:
-            menu.addAction(title, lambda a=action: self.action(a))
-        more.setMenu(menu)
-        layout.addWidget(more)
-        row = QtWidgets.QHBoxLayout()
-        for title, step in [('Undo', -1), ('Redo', 1)]:
-            button = QtWidgets.QPushButton(title)
-            button.clicked.connect(lambda checked=False, s=step: self.undo_redo(s))
-            row.addWidget(button)
-        layout.addLayout(row)
-        self.status = QtWidgets.QLabel('Left-click / drag edits immediately.')
-        self.status.setWordWrap(True)
-        layout.addWidget(self.status)
-        self.body.layout().insertWidget(0, box)
+            self.canvas.centerOn(self.width / 2, height / 2)
 
     def update_drawing_mode(self, *_):
         uncertain = self.unreliable_draw.isChecked()
@@ -221,7 +175,7 @@ class Editor(BoundaryEditor):
         self.unreliable_draw.setStyleSheet('background:#79501f; border:2px solid #ffb020;' if uncertain else '')
         self.drawing_mode_hint.setText('Left-click / drag: ' +
             ('uncertain correction (dashed).' if uncertain else 'reliable correction (solid).') +
-            ' Applies only where you draw; number boxes apply to range actions below.')
+            ' Draws new coordinates; right-drag marking keeps existing coordinates.')
 
     def update_range_summary(self, *_):
         if not hasattr(self, 'range_summary'):
@@ -253,10 +207,14 @@ class Editor(BoundaryEditor):
         self.volume = volume
         self.row = int(row)
         self.offset = int(volume.data['label_offset'])
+        self.width = volume.images.shape[2]
+        self.n_boundaries = len(volume.scan.surface_names)
+        self.span_lo.setRange(0, self.width - 1)
+        self.span_hi.setRange(1, self.width)
         self.pinned_role = pinned_role
         surfaces = volume.data['raw_position_branch'] - self.offset
         self._pending_seconds = 0.
-        super().set_line(volume.scan, row, surfaces, np.full((512, 8, 512), np.nan, np.float32), None,
+        super().set_line(volume.scan, row, surfaces, np.broadcast_to(np.float32(np.nan), surfaces.shape), None,
             dict(path=volume.entry['directory'], name='frozen raw model · v2 display policy'),
             volume.overlays[1][row], volume.overlays[0][row])
         from types import MethodType
@@ -264,19 +222,29 @@ class Editor(BoundaryEditor):
         self.pack.save = MethodType(reviewer_pack_save, self.pack)
         identity = dict(reviewer_id=self.reviewer, scan_id=volume.scan.scan_id, bscan=row,
                         model_id=volume.model_id, coordinate_system='native A-line; full canonical depth',
-                        source=volume.provenance, training_eligible=not volume.scan.scan_id.startswith('SYNTHETIC'))
-        self.journal = Journal(self.output / 'journals' / f'{volume.scan.scan_id}_b{row:04d}.json', identity)
+                        source=volume.provenance, boundary_names=list(volume.scan.surface_names), pinned_data_role=pinned_role,
+                        training_eligible=not volume.scan.scan_id.startswith('SYNTHETIC'))
+        name = f'{volume.scan.scan_id}_b{row:04d}.json'
+        self.journal = Journal(self.output / 'journals' / name, identity,
+            legacy_path=V3 / 'reviewers' / self.reviewer / 'journals' / name, read_only=self.read_only)
         self._loading = False
         self.recompute()
         self._saved_signature = self.signature()
         self._t0 = time.monotonic()
-        self.status.setText(f'B-scan {row} · saved revision {self.journal.data["revision"]}')
+        self.show_status()
 
-    def recompute(self):
+    def show_status(self):
+        if self.journal is not None:
+            status = 'Legacy · inspect and confirm to adopt' if self.journal.legacy_path else self.resolved['review_status']
+            self.status.setText(('Discussion · read only · ' if self.read_only else '') +
+                f'B-scan {self.row} · {status}' + (' · existing saved work' if self.journal.data['events'] else ''))
+
+    def recompute(self, resolved=None):
         if self.journal is None:
             return
-        self.resolved = resolve(self.journal.events, self.volume.data['raw_position_branch'][self.row],
-                                self.offset, self.pack.images.shape[1])
+        self.resolved = resolved if resolved is not None else resolve(
+            self.journal.events, self.volume.data['raw_position_branch'][self.row],
+            self.offset, self.pack.images.shape[1])
         r = self.resolved
         if self.pinned_role:
             r['metadata']['data_role'] = self.pinned_role
@@ -307,20 +275,26 @@ class Editor(BoundaryEditor):
         self.redraw_surfaces()
         self.changed.emit()
 
-    def record_event(self, action, lo=0, hi=512, boundaries=None, **payload):
-        if self.journal is None:
+    def record_event(self, action, lo=0, hi=None, boundaries=None, **payload):
+        if self.journal is None or self.read_only:
             return
+        hi = self.width if hi is None else hi
         self._bank_time()
-        event = dict(id=uuid.uuid4().hex, timestamp=time.time(), action=action,
+        event = dict(id=uuid.uuid4().hex, timestamp=time.time(), action=action, semantics=3,
                      lo=int(lo), hi=int(hi), boundaries=[self.s] if boundaries is None else boundaries, **payload)
         # Validate before the irreversible file replacement, including metadata inputs.
-        resolve(self.journal.events + [event], self.volume.data['raw_position_branch'][self.row],
+        resolved = resolve(self.journal.events + [event], self.volume.data['raw_position_branch'][self.row],
                 self.offset, self.pack.images.shape[1])
         self.journal.change(event, seconds=self._pending_seconds)
         self._pending_seconds = 0.
-        self.recompute()
-        self.commit_current()
-        self.status.setText(f'Saved {action.replace("_", " ")} · A-lines {lo}–{hi - 1}')
+        self.recompute(resolved)
+        if action == 'stroke':
+            # The authoritative journal is already durable. Batch the derived NPZ
+            # between gestures; navigation, confirmation, Save and close flush it.
+            self.compatibility_timer.start(500)
+        else:
+            self.commit_current()
+        self.show_status()
 
     def metadata(self, **values):
         if self._loading or self.journal is None:
@@ -338,7 +312,7 @@ class Editor(BoundaryEditor):
     def on_stroke(self, xs, ys):
         if self.journal is None or not len(xs):
             return
-        xs = np.clip(xs, 0, 511)
+        xs = np.clip(xs, 0, self.width - 1)
         ys = np.clip(ys, 0, self.pack.images.shape[1] - 1) + self.offset
         lo, hi = int(np.rint(xs).min()), int(np.rint(xs).max()) + 1
         self.span_lo.setValue(lo)
@@ -348,7 +322,7 @@ class Editor(BoundaryEditor):
                    drawing_reliability='unreliable' if self.unreliable_draw.isChecked() else 'reliable')
 
     def on_local_marked(self, x0, x1, action):
-        lo, hi = sorted((int(np.clip(round(x0), 0, 511)), int(np.clip(round(x1), 0, 511))))
+        lo, hi = sorted((int(np.clip(round(x0), 0, self.width - 1)), int(np.clip(round(x1), 0, self.width - 1))))
         self.span_lo.setValue(lo)
         self.span_hi.setValue(hi + 1)
         mapping = dict(not_visible='not_traceable', visible='traceable', unreliable='unreliable',
@@ -356,10 +330,10 @@ class Editor(BoundaryEditor):
         self.action(mapping[action])
 
     def on_region_marked(self, x0, x1, exclude):
-        lo, hi = sorted((int(np.clip(round(x0), 0, 511)), int(np.clip(round(x1), 0, 511))))
+        lo, hi = sorted((int(np.clip(round(x0), 0, self.width - 1)), int(np.clip(round(x1), 0, self.width - 1))))
         self.span_lo.setValue(lo)
         self.span_hi.setValue(hi + 1)
-        self.record_event('exclude_image' if exclude else 'clear_exclusion', lo, hi + 1, boundaries=list(range(8)))
+        self.record_event('exclude_image' if exclude else 'clear_exclusion', lo, hi + 1, boundaries=list(range(self.n_boundaries)))
 
     def displayed(self, k):
         mask = np.isfinite(self.rendered['reported_positions'][k])
@@ -378,7 +352,7 @@ class Editor(BoundaryEditor):
         if hi <= lo:
             self.status.setText('Stop A-line must be greater than start.')
             return
-        ks = list(range(8)) if action in ('review_all', 'unreliable_region', 'clear_region', 'exclude_image', 'clear_exclusion') else [self.s]
+        ks = list(range(self.n_boundaries)) if action in ('review_all', 'unreliable_region', 'clear_region', 'exclude_image', 'clear_exclusion') else [self.s]
         if action in ('reviewed', 'review_all', 'approve_position'):
             columns, positions = {}, {}
             for k in ks:
@@ -386,7 +360,7 @@ class Editor(BoundaryEditor):
                 ok &= ~self.resolved['excluded'] & (self.resolved['anatomy'][k] != 0)
                 if action == 'approve_position':
                     ok &= np.isfinite(self.rendered['uncertain_estimates'][k]) & ~self.resolved['displaced'][k]
-                cc = np.flatnonzero(ok & (np.arange(512) >= lo) & (np.arange(512) < hi))
+                cc = np.flatnonzero(ok & (np.arange(self.width) >= lo) & (np.arange(self.width) < hi))
                 if len(cc):
                     columns[str(k)] = cc.tolist()
                     positions[str(k)] = self.resolved['positions'][k, cc].astype(float).tolist()
@@ -400,12 +374,13 @@ class Editor(BoundaryEditor):
             self.record_event(action, lo, hi, ks)
 
     def undo_redo(self, step):
-        if self.journal is not None:
+        if self.journal is not None and not self.read_only:
             self._bank_time()
             self.journal.change(direction=step, seconds=self._pending_seconds)
             self._pending_seconds = 0.
             self.recompute()
             self.commit_current()
+            self.show_status()
 
     def set_blind(self, enabled):
         self.blind = enabled
@@ -415,6 +390,11 @@ class Editor(BoundaryEditor):
         self.changed.emit()
 
     def eventFilter(self, obj, event):
+        if self.read_only and obj in (self.canvas, self.canvas.viewport()) and event.type() in (
+                QtCore.QEvent.Type.MouseButtonPress, QtCore.QEvent.Type.MouseMove, QtCore.QEvent.Type.MouseButtonRelease):
+            if event.buttons() & (Qt.MouseButton.LeftButton | Qt.MouseButton.RightButton) or (
+                    event.type() == QtCore.QEvent.Type.MouseButtonRelease and event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton)):
+                return True
         if obj == self.canvas and event.type() in (QtCore.QEvent.Type.KeyPress, QtCore.QEvent.Type.KeyRelease):
             keys = (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Comma, Qt.Key.Key_Period,
                     Qt.Key.Key_PageUp, Qt.Key.Key_PageDown, Qt.Key.Key_BracketLeft, Qt.Key.Key_BracketRight,
@@ -434,9 +414,9 @@ class Editor(BoundaryEditor):
                 and event.modifiers() == Qt.KeyboardModifier.NoModifier
                 and not self.canvas._space and self.auto_pick.isChecked()):
             point = self.canvas.mapToScene(event.position().toPoint())
-            x = int(np.clip(round(point.x()), 0, 511))
+            x = int(np.clip(round(point.x()), 0, self.width - 1))
             distances = [abs(float(self.resolved['positions'][k, x]) - self.offset - point.y())
-                         if self.displayed(k)[x] else np.inf for k in range(8)]
+                         if self.displayed(k)[x] else np.inf for k in range(self.n_boundaries)]
             k = int(np.argmin(distances))
             tolerance = 12 / max(.01, abs(self.canvas.transform().m22()))
             if distances[k] <= tolerance:
@@ -459,7 +439,7 @@ class Editor(BoundaryEditor):
             shown = self.surface_list.item(k).checkState() == Qt.CheckState.Checked
             shown &= not self.only_active.isChecked() or k == self.s
             item.setVisible(shown)
-            mask = np.ones(512, bool) if not self.blind else self.resolved['drawn'][k] & ~self.resolved['displaced'][k]
+            mask = np.ones(self.width, bool) if not self.blind else self.resolved['drawn'][k] & ~self.resolved['displaced'][k]
             item.setPath(curve_path(self.rendered['reported_positions'][k] - self.offset, mask))
             pen = QtGui.QPen(QtGui.QColor(legacy.SURFACE_COLOURS[k]), 2.5 if k == self.s else 1.4)
             pen.setCosmetic(True)
@@ -471,6 +451,15 @@ class Editor(BoundaryEditor):
                 overlay.setZValue(26)
                 self._extras.append(overlay)
         self.update_range_summary()
+        # Geometry errors are visible; software movement alone is not uncertainty.
+        for k in range(self.n_boundaries):
+            bad = self.resolved['unresolved'][k]
+            if bad.any():
+                pen = QtGui.QPen(QtGui.QColor('#ff3d65'), 3); pen.setCosmetic(True)
+                yy = np.full(self.width, 3 + k * 5, dtype=float)
+                overlay = self.canvas.scene().addPath(curve_path(yy, bad), pen)
+                overlay.setToolTip(f'{self.pack.names[k]}: missing or invalid geometry; correct or mark an exception')
+                overlay.setZValue(45); self._extras.append(overlay)
 
     def update_labels(self):
         pass
@@ -480,7 +469,9 @@ class Editor(BoundaryEditor):
             self.redraw_surfaces()
 
     def commit_current(self):
-        if self._loading or self.journal is None:
+        if hasattr(self, 'compatibility_timer'):
+            self.compatibility_timer.stop()
+        if self._loading or self.journal is None or self.read_only or self.journal.legacy_path:
             return
         self._bank_time()
         if self.journal.data['events'] and self._pending_seconds >= 1:
@@ -504,7 +495,7 @@ class Editor(BoundaryEditor):
         elif key in (Qt.Key.Key_Right, Qt.Key.Key_Period, Qt.Key.Key_PageDown):
             self.stepRequested.emit(1)
         elif key in (Qt.Key.Key_BracketLeft, Qt.Key.Key_BracketRight):
-            self.surface_list.setCurrentRow((self.s + (-1 if key == Qt.Key.Key_BracketLeft else 1)) % 8)
+            self.surface_list.setCurrentRow((self.s + (-1 if key == Qt.Key.Key_BracketLeft else 1)) % self.n_boundaries)
         elif Qt.Key.Key_1 <= key <= Qt.Key.Key_8:
             self.surface_list.setCurrentRow(key - Qt.Key.Key_1)
         elif key == Qt.Key.Key_Space:
@@ -512,9 +503,9 @@ class Editor(BoundaryEditor):
         elif key == Qt.Key.Key_F:
             self.fit_image()
         elif key == Qt.Key.Key_U:
-            self.record_event('clear_marks', 0, 512)
+            self.record_event('clear_marks', 0, self.width)
         elif key == Qt.Key.Key_E:
-            self.record_event('clear_exclusion', 0, 512, list(range(8)))
+            self.record_event('clear_exclusion', 0, self.width, list(range(self.n_boundaries)))
         else:
             QtWidgets.QMainWindow.keyPressEvent(self, event)
 

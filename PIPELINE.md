@@ -1,5 +1,7 @@
 # How the pipeline works, stage by stage
 
+**Whole-B-scan review (2026-09-15):** the replacement [octa-seg_v3 review GUI](outputs/octa-seg/octa-seg_v3/review/START_HERE.md) explicitly approves inspected unchanged, drawn, joined and moved final positions when the entire B-scan is confirmed. Explicit exceptions remain masked. This new contract supersedes drawn-only rules only for valid new confirmations; historical labels and earlier model training retain their original meaning. No model was trained in this GUI task.
+
 The versioned `code/octa_seg_v1` implementation adds a boundary-specific
 reporting stage to the updated U-Net. Position targets require exact manual
 stroke provenance. Traceability and reliability targets use explicit saved

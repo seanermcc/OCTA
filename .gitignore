@@ -48,6 +48,9 @@ outputs/**
 !outputs/**/gallery_template.html
 !outputs/**/gallery-review.js
 
+# Disposable project copies created by release path-verification tests.
+outputs/**/verification/paths*/
+
 # Local logs and one-off machine migration helper
 *.log
 organize.bat

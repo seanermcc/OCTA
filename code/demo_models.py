@@ -8,9 +8,9 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'outputs'
 V2 = OUT / 'octa-seg/octa-seg_v2'
-V3 = OUT / 'octa-seg/octa-seg_v3'
+V3 = OUT / 'octa-seg/octa-seg_v3/review'
 CHOICES = {
-    '1': ('Layer review v3 (current)', V3, ['-m', 'octa_seg_v3.gui'], V3 / 'catalog.json'),
+    '1': ('Layer review v3 (current)', V3, ['launch.py'], V3 / 'catalog.json'),
     '2': ('Layer review v2 (previous workflow)', V2, ['-m', 'octa_seg_v2.gui'], V2 / 'manifest.json'),
     '3': ('CNV v6: original B/C predictions', OUT / 'octa-auto_cnv_unet_v6/review', ['viewer.py'], OUT / 'octa-auto_cnv_unet_v6/all_samples/FINAL_VERIFIED.json'),
     '4': ('Vessel / ONH v1 correction queue', OUT / 'octo-vessel_onh_v1', ['app.py'], OUT / 'octa-vessel_seg_v1-batch/inventory.json'),

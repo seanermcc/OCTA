@@ -2,7 +2,7 @@
 
 ## Status and objective
 
-This is the active collection and target-reader contract for the implemented replacement GUI in `review`, verified September 15, 2026. The historical GUI's completion checkbox does not implement this contract. See `IMPLEMENTATION.md` for verification and `PROVIDERS.md` for integration details. No new model is trained, no historical annotations are relabeled, and no completed review dataset is claimed by writing this plan.
+This is the revised contract for the replacement GUI in `review`. It becomes operational when the accompanying implementation specification is implemented and verified. The existing GUI's completion checkbox does not implement this contract. No new model is trained, no historical annotations are relabeled, and no completed review dataset is claimed by writing this plan.
 
 Improve boundary positions and decisions about uncertainty around CNV centers, margins and transitions while retaining useful segmentation in readable tissue. Include ONH and low-signal/shadow cases. The reviewer edits one working segmentation initialized from automatic predictions, records exceptions and confirms the entire B-scan.
 
@@ -26,7 +26,7 @@ Confirmed means the review is complete. It does not mean all boundaries are reli
 4. Inspect the final all-boundary view and click **Confirm entire B-scan** once. No partial confirmation or separate candidate approval is required. The confirmation means: “I reviewed all boundaries across this B-scan. The remaining positions are acceptable except where I explicitly marked uncertainty, lack of traceability, or unusable image.”
 5. Resume later from the saved-review list. Yellow navigator lines identify existing work: solid for confirmed and dashed for drafts/legacy unconfirmed reviews. Revisiting a case opens its saved segmentation rather than creating a duplicate.
 
-Work autosaves as Draft before confirmation. Reviewers can pause at any time. Changing a data-use role also requires reconfirmation; notes and sharing tags do not. Changing a data-use role also requires reconfirmation; notes and sharing tags do not. A draft is not a whole-B-scan-approved training example; collection exports must identify and exclude drafts from that pool.
+Work autosaves as Draft before confirmation. Reviewers can pause at any time. A draft is not a whole-B-scan-approved training example; collection exports must identify and exclude drafts from that pool.
 
 ### Required record after confirmation
 

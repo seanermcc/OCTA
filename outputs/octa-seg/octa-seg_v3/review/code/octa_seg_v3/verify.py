@@ -39,7 +39,7 @@ class ContractTests(unittest.TestCase):
             self.assertTrue(np.all(r['reliability'][1, 212:214] == value))
             result = render(BASE, r, 0, 256, np.zeros(512, bool))
             self.assertTrue(np.all(result['state'][1, 212:214] == (3 if value == 0 else 1)))
-            self.assertEqual(result['state'][1, 211], 3)  # taper stays uncertain
+            self.assertEqual(result['state'][1, 211], BASE['state'][1, 211])  # joining is not a reliability mark
 
     def test_modifier_axes_independent(self):
         events = [e('unreliable'), e('not_traceable'), e('traceable')]
@@ -64,7 +64,7 @@ class ContractTests(unittest.TestCase):
         self.assertFalse(r['drawn'][2, 70])
         self.assertTrue(np.all(r['reliability'] == -1))
         output = render(BASE, r, 0, 256, np.zeros(512, bool))
-        self.assertTrue(np.isnan(output['reported_positions'][1, 69]))
+        self.assertEqual(output['state'][1, 69], BASE['state'][1, 69])
 
     def test_reviewed_is_not_drawn(self):
         r = resolve([e('reviewed', columns={'1': [65]}, positions={'1': [45.]})], RAW, 0, 256)

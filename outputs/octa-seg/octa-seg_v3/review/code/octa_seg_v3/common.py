@@ -26,13 +26,16 @@ def writable(path):
     path = Path(path).resolve()
     if not path.is_relative_to(OUT):
         raise ValueError('All v3 outputs must stay inside octa-seg_v3')
-    path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.parent.is_dir():
+        path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
 
-def write(path, value):
+def write(path, value, *, compact=False):
     path = writable(path)
-    content = json.dumps(value, indent=2, ensure_ascii=False, allow_nan=False)
+    content = json.dumps(value, indent=None if compact else 2,
+                         separators=(',', ':') if compact else None,
+                         ensure_ascii=False, allow_nan=False)
     temporary = path.with_name(path.name + '.' + uuid.uuid4().hex + '.tmp')
     try:
         with temporary.open('w', encoding='utf-8') as f:

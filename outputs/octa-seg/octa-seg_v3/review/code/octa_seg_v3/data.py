@@ -44,6 +44,9 @@ def discover():
         for path in sorted(folder.iterdir()):
             if all((path / name).is_file() for name in ('prepared.json', 'measurements.npz', 'geometry.npz')):
                 result[path.name] = dict(scan_id=path.name, directory=str(path.resolve()))
+    from .providers import surface_entries
+    for entry in surface_entries():
+        result[entry['scan_id']] = entry
     return [result[key] for key in sorted(result)]
 
 
@@ -80,9 +83,11 @@ def load_volume(entry, image_budget=1024**3):
         geometry = {key: z[key] for key in z.files}
     image_path = local_path(prep['images'])
     mapped = np.load(image_path, mmap_mode='r', allow_pickle=False)
-    if mapped.ndim != 3 or mapped.shape[0] != 512 or mapped.shape[2] != 512:
-        raise ValueError('Expected cached canonical images [512, depth, 512]')
-    if data['raw_position_branch'].shape != (512, 8, 512) or data['probabilities'].shape != (512, 8, 2, 512):
+    if mapped.ndim != 3 or min(mapped.shape) < 1:
+        raise ValueError('Expected cached canonical images [B-scan, depth, A-line]')
+    rows, depth, width = mapped.shape
+    count = len(SURFACE_NAMES)
+    if data['raw_position_branch'].shape != (rows, count, width) or data['probabilities'].shape != (rows, count, 2, width):
         raise ValueError('Frozen prediction/native image grid mismatch')
     if int(data['label_offset']) != int(geometry['label_offset']):
         raise ValueError('Provider and geometry disagree on canonical crop offset')
@@ -103,7 +108,7 @@ def load_volume(entry, image_budget=1024**3):
             [('reported_positions', np.float32), ('uncertain_estimates', np.float32),
              ('state', np.uint8), ('reason', np.uint8)]}
     offset = int(data['label_offset'])
-    for row in range(512):
+    for row in range(rows):
         b = baseline(data['raw_position_branch'][row], data['probabilities'][row], calibration,
                      data['vessel'][row], offset, images.shape[1])
         for key in base:
@@ -111,7 +116,7 @@ def load_volume(entry, image_budget=1024**3):
     maps = thickness(base['reported_positions'], data['shadow'])
     structural = np.mean(images, axis=1, dtype=np.float32)
     source = local_path(prep['source']['path'])
-    scan = SimpleNamespace(scan_id=entry['scan_id'], source_volume=source, native_shape=(512, 512),
+    scan = SimpleNamespace(scan_id=entry['scan_id'], source_volume=source, native_shape=(rows, width),
                            retina_band=tuple(map(int, geometry['retina_band'])),
                            surface_names=tuple(SURFACE_NAMES), px_um=1.12, shadow=data['shadow'],
                            structural_bscan=lambda row: images[row])
@@ -132,8 +137,12 @@ def load_volume(entry, image_budget=1024**3):
         if isinstance(array, np.ndarray):
             array.setflags(write=False)
     nbytes = sum(a.nbytes for a in arrays if isinstance(a, np.ndarray) and not isinstance(a, np.memmap))
-    return Volume(entry, images, data, geometry, base, maps, structural, scan, overlays,
-                  model_id, provenance, time.perf_counter() - started, nbytes, image_mode)
+    result = Volume(entry, images, data, geometry, base, maps, structural, scan, overlays,
+                    model_id, provenance, time.perf_counter() - started, nbytes, image_mode)
+    if entry.get('provider_geometry'):
+        from .providers import validate_grid
+        validate_grid(entry['provider_geometry'], result)
+    return result
 
 
 class VolumeCache:
@@ -151,10 +160,10 @@ class VolumeCache:
         self.misses = 0
         self.closed = False
 
-    def _load(self, sid):
-        value = self.loader(self.entries[sid], image_budget=max(0, self.max_bytes // 3 - 100 * 1024**2))
+    def _load(self, sid, entry):
+        value = self.loader(entry, image_budget=max(0, self.max_bytes // 3 - 100 * 1024**2))
         with self.lock:
-            if self.closed:
+            if self.closed or self.entries[sid] != entry:
                 return value
             self.cache[sid] = value
             self.cache.move_to_end(sid)
@@ -180,7 +189,7 @@ class VolumeCache:
             future = self.pending.get(sid)
             if future is None or future.cancelled() or (future.done() and future.exception() is not None):
                 self.misses += 1
-                future = self.executor.submit(self._load, sid)
+                future = self.executor.submit(self._load, sid, dict(self.entries[sid]))
                 self.pending[sid] = future
             return None, future
 

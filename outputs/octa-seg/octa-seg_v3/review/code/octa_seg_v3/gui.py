@@ -5,7 +5,9 @@ import random
 import time
 from pathlib import Path
 import numpy as np
-from .common import OUT, V2, read, write, reviewer_id, CATEGORIES, ROLES
+from .common import OUT, V2, V3, read, write, reviewer_id, CATEGORIES, ROLES
+from .saved import index as saved_index, Browser
+from .controls import collapsible
 from .data import discover, VolumeCache, THICKNESS_NAMES, THICKNESS_LABELS
 from .label_gui import Editor, Qt, QtCore, QtGui, QtWidgets
 from .feedback import resolve
@@ -43,7 +45,7 @@ Solid: working measurement (experimental)<br>
 Dashes: uncertain position candidate<br>
 Gap: no trace, judged absence, or unusable image<br>
 Not traceable ≠ anatomically absent.<br>
-Software joins are uncertain, never human strokes.<br>
+Joins and moved neighbors keep their reliability.<br>
 Missing judgments stay unknown.'''
 
 
@@ -64,6 +66,24 @@ def configure_v3_app(app):
 
 
 class Navigator(ReviewCanvas):
+    def review_lines(self, records):
+        for item in getattr(self, '_review_lines', []):
+            self.scene().removeItem(item)
+        self._review_lines = []
+        width = self._shape[1]
+        for r in records:
+            pen = QtGui.QPen(QtGui.QColor('#ffea00'), 2.7,
+                Qt.PenStyle.SolidLine if r['status'] == 'Confirmed' else Qt.PenStyle.DashLine)
+            pen.setCosmetic(True)
+            item = self.scene().addLine(0, r['bscan'], width-1, r['bscan'], pen)
+            item.setZValue(15)
+            item.setToolTip(f'Native B-scan {r["bscan"]} · {r["status"]}')
+            item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+            self._review_lines.append(item)
+        self._cursor.setZValue(20)
+        pen = QtGui.QPen(QtGui.QColor('#00ffff'), 2, Qt.PenStyle.DashDotLine)
+        pen.setCosmetic(True); self._cursor.setPen(pen)
+
     def show_map(self, values, limits):
         from matplotlib import colormaps
         lo, hi = limits
@@ -82,15 +102,18 @@ class Navigator(ReviewCanvas):
 class Window(QtWidgets.QMainWindow):
     ready = QtCore.Signal()
 
-    def __init__(self, reviewer='lead', queue_path=None, entries=None, output=None, autoload=True, cache=None, queue_output=None):
+    def __init__(self, reviewer='lead', queue_path=None, entries=None, output=None, autoload=True, cache=None, queue_output=None, read_only=False):
         super().__init__()
+        self.read_only = read_only
+        self.saved_browser = None
+        self.discussion_windows = []
         self.reviewer = reviewer_id(reviewer)
         self.output = Path(output or OUT / 'reviewers' / self.reviewer)
         self.output.mkdir(parents=True, exist_ok=True)
         self.queue_output = Path(queue_output or OUT / 'review_queues')
         self.session_lock = QtCore.QLockFile(str(self.output / 'reviewer_session.lock'))
         self.session_lock.setStaleLockTime(30000)
-        if not self.session_lock.tryLock(0):
+        if not read_only and not self.session_lock.tryLock(0):
             raise RuntimeError('This reviewer already has a window open. Use that window or a different reviewer ID.')
         self.entries = entries or discover()
         if not self.entries:
@@ -114,6 +137,7 @@ class Window(QtWidgets.QMainWindow):
         self.roles.update({(q['scan_id'], q['bscan']): q['data_role'] for q in self.queue if q.get('data_role') in ('assessment', 'practice')})
         self.session_path = self.output / 'session.json'
         self.editor = Editor(self.output, self.reviewer)
+        self.editor.read_only = read_only
         self.editor.stepRequested.connect(lambda step: self.navigate(self.row + step))
         self.editor.cursorColumn.connect(self.cursor_column)
         self.editor.changed.connect(self.on_editor_changed)
@@ -130,7 +154,10 @@ class Window(QtWidgets.QMainWindow):
         splitter.setSizes([305, 1375])
         self.setCentralWidget(splitter)
         self.build_navigation()
-        self.setWindowTitle(f'octa-seg_v3 · {self.reviewer} · boundary training review')
+        if read_only:
+            self.editor.tools_box.setEnabled(False)
+            self.sampling_box.setEnabled(False)
+        self.setWindowTitle(f'octa-seg_v3 review · {self.reviewer} · ' + ('DISCUSSION — READ ONLY' if read_only else 'whole-B-scan confirmation'))
         self.resize(1700, 1030)
         self.poll = QtCore.QTimer(self)
         self.poll.timeout.connect(self.poll_cache)
@@ -139,6 +166,15 @@ class Window(QtWidgets.QMainWindow):
         self.notes_timer.setSingleShot(True)
         self.notes_timer.timeout.connect(self.save_notes)
         self.started = time.monotonic()
+        self.overlay_timer = QtCore.QTimer(self)
+        self.overlay_timer.setSingleShot(True)
+        self.overlay_timer.timeout.connect(self.refresh_overlays)
+        app = QtWidgets.QApplication.instance()
+        app.applicationStateChanged.connect(lambda state: self.overlay_timer.start(750) if state == Qt.ApplicationState.ApplicationActive else None)
+        self.context_poll = QtCore.QTimer(self)
+        self.context_poll.timeout.connect(self.schedule_context_refresh)
+        self.context_poll.start(10000)
+        self._context_signature = None
         if autoload:
             previous = read(self.session_path) if self.session_path.exists() else {}
             sid = previous.get('scan_id', self.entries[0]['scan_id'])
@@ -151,11 +187,14 @@ class Window(QtWidgets.QMainWindow):
     def build_left(self):
         left = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(left)
+        self.left_layout = layout
         layout.setContentsMargins(6, 5, 6, 5)
         self.map_title = QtWidgets.QLabel('<b>Volume navigator</b> · click to select a B-scan')
         self.map_title.setWordWrap(True)
         layout.addWidget(self.map_title)
         layout.addWidget(self.navigator)
+        self.review_legend = QtWidgets.QLabel('<b style="color:#ffea00">Yellow — confirmed · - - saved draft / legacy</b><br><span style="color:#00ffff">Cyan: current native B-scan</span>')
+        self.review_legend.setWordWrap(True); layout.addWidget(self.review_legend)
         # Both controls are below the same image, as requested.
         self.map_tabs = QtWidgets.QTabBar()
         self.map_tabs.addTab('En face')
@@ -179,6 +218,10 @@ class Window(QtWidgets.QMainWindow):
         refresh = QtWidgets.QPushButton('Refresh saved vessel / CNV / ONH overlays')
         refresh.clicked.connect(self.refresh_overlays)
         layout.addWidget(refresh)
+        self.experimental_onh = QtWidgets.QCheckBox('Show experimental automatic ONH (v2)')
+        self.experimental_onh.setToolTip('The completed learned ONH release has false detections. Opt-in context only; saved human work takes priority.')
+        self.experimental_onh.toggled.connect(self.refresh_overlays)
+        layout.addWidget(self.experimental_onh)
         self.neighbor_check = QtWidgets.QCheckBox('Show neighboring B-scans')
         self.neighbor_check.toggled.connect(self.show_neighbors)
         layout.addWidget(self.neighbor_check)
@@ -219,11 +262,9 @@ class Window(QtWidgets.QMainWindow):
         layout.addLayout(grid)
         self.ambiguous = QtWidgets.QCheckBox('Especially ambiguous')
         self.for_review = QtWidgets.QCheckBox('For review · share with colleagues')
-        self.completed = QtWidgets.QCheckBox('My review of this B-scan is complete')
         self.ambiguous.toggled.connect(lambda value: self.set_metadata(especially_ambiguous=value))
         self.for_review.toggled.connect(lambda value: self.set_metadata(for_review=value))
-        self.completed.toggled.connect(lambda value: self.set_metadata(completed=value))
-        for check in (self.ambiguous, self.for_review, self.completed):
+        for check in (self.ambiguous, self.for_review):
             layout.addWidget(check)
         role_row = QtWidgets.QHBoxLayout()
         role_row.addWidget(QtWidgets.QLabel('Data use'))
@@ -240,8 +281,9 @@ class Window(QtWidgets.QMainWindow):
         layout.addWidget(self.notes)
         self.case_count = QtWidgets.QLabel('')
         self.case_count.setWordWrap(True)
-        layout.addWidget(self.case_count)
-        self.editor.body.layout().insertWidget(0, box)
+        self.left_layout.insertWidget(3, self.case_count)
+        self.sampling_box = box
+        collapsible('Sampling, notes and data use', self.editor.body.layout(), box)
         self.editor.body.layout().removeWidget(self.editor.surface_list)
         self.editor.body.layout().insertWidget(0, self.editor.surface_list)
 
@@ -274,8 +316,14 @@ class Window(QtWidgets.QMainWindow):
         nav.addAction('B-scan >', lambda: self.navigate(self.row + 1))
         nav.addAction('Fit', self.fit)
         nav.addAction('Save', self.save_all)
+        saved_action = nav.addAction('★ My saved reviews', self.show_saved)
+        saved_action.setToolTip('Search and resume your drafts, confirmed reviews and historical work')
+        nav.addAction('Next unreviewed', self.next_unreviewed)
+        self.queue_toggle = nav.addAction('Review lists')
+        self.queue_toggle.setCheckable(True)
         self.addToolBarBreak()
         queue = self.addToolBar('Review queue')
+        self.queue_toolbar = queue
         queue.setMovable(False)
         self.bscan_slider = QtWidgets.QSlider(Qt.Orientation.Horizontal)
         self.bscan_slider.setRange(0, 511)
@@ -287,19 +335,25 @@ class Window(QtWidgets.QMainWindow):
         self.queue_choice.setMinimumWidth(300)
         self.queue_choice.activated.connect(self.goto_queue)
         queue.addWidget(self.queue_choice)
-        queue.addAction('Previous case', lambda: self.queue_step(-1))
-        queue.addAction('Next case', lambda: self.queue_step(1))
+        self.previous_case = queue.addAction('Previous selected B-scan', lambda: self.queue_step(-1))
+        self.next_case = queue.addAction('Next selected B-scan', lambda: self.queue_step(1))
         queue.addAction('My flagged cases', self.use_flagged_queue)
         queue.addAction('Export colleagues’ queue', self.export_queue)
         self.progress_label = QtWidgets.QLabel('Independent annotation · saves stay under your reviewer ID')
         queue.addWidget(self.progress_label)
         self.populate_queue()
+        settings = QtCore.QSettings('OCTA', 'WholeBscanReview')
+        visible = bool(self.queue) or settings.value('review_toolbar', False, type=bool)
+        self.queue_toggle.toggled.connect(queue.setVisible)
+        self.queue_toggle.toggled.connect(lambda on: settings.setValue('review_toolbar', on))
+        self.queue_toggle.setChecked(visible); queue.setVisible(visible)
 
     def populate_queue(self):
         self.queue_choice.clear()
         self.queue_choice.addItem('Free browsing · all available volumes')
         for i, q in enumerate(self.queue):
             self.queue_choice.addItem(f'{i + 1}/{len(self.queue)} · {q["scan_id"]} · B{q["bscan"]}')
+        self.previous_case.setEnabled(bool(self.queue)); self.next_case.setEnabled(bool(self.queue))
 
     def load_scan(self, index, row=None):
         index = int(index)
@@ -308,6 +362,19 @@ class Window(QtWidgets.QMainWindow):
         self.save_all()
         target_row = self.row if row is None else int(row)
         entry = self.entries[index]
+        # Resolve the case's saved/frozen source before requesting a volume.
+        saved = next((r for r in saved_index(self.reviewer, self.output) if r['scan_id'] == entry['scan_id'] and r['bscan'] == target_row), None)
+        assignment = self.queue_definitions.get((entry['scan_id'], target_row))
+        bound = saved['source'].get('provider') if saved else assignment.get('provider') if assignment else None
+        if bound:
+            entry = dict(entry, directory=bound)
+        if self.cache.entries[entry['scan_id']]['directory'] != entry['directory']:
+            with self.cache.lock:
+                self.cache.cache.pop(entry['scan_id'], None)
+                pending = self.cache.pending.pop(entry['scan_id'], None)
+                if pending and not pending.done():
+                    pending.cancel()
+                self.cache.entries[entry['scan_id']] = entry
         self.editor.setEnabled(False)
         self.scan_choice.setCurrentIndex(index)
         self.statusBar().showMessage('Loading ' + entry['scan_id'] + '…')
@@ -340,8 +407,13 @@ class Window(QtWidgets.QMainWindow):
         self.volume = volume
         self.scan_index = index
         self._maps = volume.thickness.copy()
+        for control in (self.bscan, self.bscan_slider):
+            control.blockSignals(True); control.setRange(0, volume.images.shape[0]-1); control.blockSignals(False)
         # Load this reviewer's journals only; other people's strokes never preload.
-        for path in sorted((self.output / 'journals').glob(f'{volume.scan.scan_id}_b*.json')):
+        for entry in saved_index(self.reviewer, self.output):
+            if entry['scan_id'] != volume.scan.scan_id or entry['model_id'] != volume.model_id:
+                continue
+            path = Path(entry['path'])
             record = read(path)
             if record['reviewer_id'] != self.reviewer or record['model_id'] != volume.model_id:
                 raise ValueError('A saved annotation does not match this reviewer/provider')
@@ -354,6 +426,7 @@ class Window(QtWidgets.QMainWindow):
         self.editor.setEnabled(True)
         self.navigate(row)
         self.update_map()
+        self.refresh_overlays()
         self.fit()
         self.scan_choice.setCurrentIndex(index)
         self.cache.prefetch([e['scan_id'] for e in self.entries[index + 1:index + 3]])
@@ -365,9 +438,14 @@ class Window(QtWidgets.QMainWindow):
         if self.volume is None or self._pending is not None:
             return
         self.save_all()
-        self.row = int(np.clip(row, 0, 511))
+        target_row = int(np.clip(row, 0, self.volume.images.shape[0]-1))
+        saved = next((r for r in saved_index(self.reviewer, self.output) if r['scan_id'] == self.volume.scan.scan_id and r['bscan'] == target_row), None)
+        if saved and saved['model_id'] != self.volume.model_id:
+            self.load_scan(self.scan_index, target_row)
+            return
+        self.row = target_row
         if col is not None:
-            self.col = int(np.clip(col, 0, 511))
+            self.col = int(np.clip(col, 0, self.volume.images.shape[2]-1))
         key = (self.volume.scan.scan_id, self.row)
         assignment = self.queue_definitions.get(key)
         if assignment and assignment.get('model_id') and assignment['model_id'] != self.volume.model_id:
@@ -384,11 +462,13 @@ class Window(QtWidgets.QMainWindow):
         self.navigator.set_cursor(self.row, self.col)
         self.show_neighbors(self.neighbor_check.isChecked())
         self.update_point()
-        write(self.session_path, dict(reviewer_id=self.reviewer, scan_id=key[0], bscan=self.row))
+        if not self.read_only:
+            write(self.session_path, dict(reviewer_id=self.reviewer, scan_id=key[0], bscan=self.row))
+        self.update_review_lines()
 
     def cursor_column(self, col):
         if self.volume is not None:
-            self.col = int(np.clip(col, 0, 511))
+            self.col = int(np.clip(col, 0, self.volume.images.shape[2]-1))
             self.navigator.set_cursor(self.row, self.col)
             self.update_point()
 
@@ -401,7 +481,6 @@ class Window(QtWidgets.QMainWindow):
             check.setChecked(key in meta['categories'])
         self.ambiguous.setChecked(meta['especially_ambiguous'])
         self.for_review.setChecked(meta['for_review'])
-        self.completed.setChecked(meta['completed'])
         self.role.setCurrentIndex(self.role.findData(meta['data_role']))
         self.role.setEnabled(self.editor.pinned_role is None)
         self.role.setToolTip('Reserved by the assessment/shared manifest; cannot be used for development fitting.' if self.editor.pinned_role else '')
@@ -416,6 +495,7 @@ class Window(QtWidgets.QMainWindow):
             self.update_map()
         self.update_point()
         self.case_count.setText(f'{self.reviewer} · revision {self.editor.journal.data["revision"]} · case tags are separate from boundary marks')
+        self.update_review_lines()
 
     def set_metadata(self, **kwargs):
         if not self._syncing:
@@ -433,6 +513,8 @@ class Window(QtWidgets.QMainWindow):
             self.editor.metadata(notes=self.notes.toPlainText())
 
     def save_all(self):
+        if self.read_only:
+            return
         if hasattr(self, 'notes_timer') and self.notes_timer.isActive():
             self.notes_timer.stop()
             self.save_notes()
@@ -480,6 +562,7 @@ class Window(QtWidgets.QMainWindow):
             self.colorbar.setPixmap(QtGui.QPixmap.fromImage(q).scaled(280, 12))
             self.colorbar.show()
         self.navigator.set_cursor(self.row, self.col)
+        self.update_review_lines()
         self.update_point()
 
     def update_point(self):
@@ -500,18 +583,32 @@ class Window(QtWidgets.QMainWindow):
     def refresh_overlays(self):
         if self.volume is None:
             return
+        if self.editor.canvas._drawing or self.editor.canvas._region_dragging:
+            self.overlay_timer.start(500)
+            return
         from .common import ROOT, BATCH
         proposal = V2 / 'proposals'
         if not (proposal / f'{self.volume.scan.scan_id}_proposal.npz').exists():
             proposal = BATCH / 'proposals'
-        self.volume.overlays = load_enface(self.volume.scan, ROOT / 'outputs/cnv_labels', proposal)
+        from .providers import context_overlays
+        try:
+            self.volume.overlays = context_overlays(self.volume, proposal, experimental_onh=self.experimental_onh.isChecked())
+        except Exception as exc:
+            self.statusBar().showMessage('Context refresh unavailable: ' + str(exc))
+            return
+        if not self.read_only:
+            exposure = self.output / 'context_exposure' / (self.volume.scan.scan_id + '.json')
+            old = read(exposure) if exposure.exists() else []
+            source = self.volume.overlays[4]
+            if not old or old[-1]['source'] != source:
+                write(exposure, old + [dict(timestamp=time.time(), source=source, reviewer=self.reviewer)])
         self.editor.set_footprints(self.volume.overlays[1][self.row], self.volume.overlays[0][self.row])
         self.update_map()
 
     def show_neighbors(self, enabled):
         self.neighbors.setVisible(enabled)
         if enabled and self.volume is not None:
-            image = np.concatenate([self.volume.images[max(0, self.row - 1)], self.volume.images[min(511, self.row + 1)]], axis=0)
+            image = np.concatenate([self.volume.images[max(0, self.row - 1)], self.volume.images[min(self.volume.images.shape[0]-1, self.row + 1)]], axis=0)
             lo, hi = np.percentile(image, [2, 99])
             pixels = np.ascontiguousarray((np.clip((image - lo) / max(.01, hi - lo), 0, 1) * 255).astype(np.uint8))
             q = QtGui.QImage(pixels.data, pixels.shape[1], pixels.shape[0], pixels.strides[0], QtGui.QImage.Format.Format_Grayscale8).copy()
@@ -524,7 +621,8 @@ class Window(QtWidgets.QMainWindow):
     def flagged(self):
         self.save_all()
         result = []
-        for path in sorted((self.output / 'journals').glob('*.json')):
+        for entry in saved_index(self.reviewer, self.output, include_tags=True):
+            path = Path(entry['path'])
             record = read(path)
             meta = {}
             for event in record['events'][:record['cursor']]:
@@ -533,13 +631,14 @@ class Window(QtWidgets.QMainWindow):
             if meta.get('for_review') and record['scan_id'] in self.by_id:
                 role = self.roles.get((record['scan_id'], record['bscan']), meta.get('data_role', 'development'))
                 result.append(dict(scan_id=record['scan_id'], bscan=record['bscan'], data_role=role,
-                    provider=self.entries[self.by_id[record['scan_id']]]['directory'], model_id=record['model_id'],
+                    provider=record['source'].get('provider', self.entries[self.by_id[record['scan_id']]]['directory']), model_id=record['model_id'],
                     especially_ambiguous=bool(meta.get('especially_ambiguous')), categories=meta.get('categories', [])))
         return result
 
     def use_flagged_queue(self):
         self.queue = self.flagged()
         self.populate_queue()
+        self.queue_toggle.setChecked(True)
         self.progress_label.setText(f'{len(self.queue)} of your flagged cases · original annotations stay private')
 
     def export_queue(self):
@@ -570,6 +669,7 @@ class Window(QtWidgets.QMainWindow):
         if index <= 0 or index > len(self.queue):
             return
         q = self.queue[index - 1]
+        self.queue_toggle.setChecked(True)
         self.queue_choice.setCurrentIndex(index)
         if q['scan_id'] not in self.by_id:
             QtWidgets.QMessageBox.warning(self, 'Queue source unavailable', q['scan_id'])
@@ -594,9 +694,64 @@ class Window(QtWidgets.QMainWindow):
             return
         self.poll.stop()
         self.editor.timer.stop()
+        self.context_poll.stop(); self.overlay_timer.stop()
         self.cache.close()
-        self.session_lock.unlock()
+        if not self.read_only:
+            self.session_lock.unlock()
         event.accept()
+
+    def update_review_lines(self):
+        if self.volume is None or not hasattr(self, 'case_count'):
+            return
+        records = saved_index(self.reviewer, self.output)
+        current = [r for r in records if r['scan_id'] == self.volume.scan.scan_id]
+        self.navigator.review_lines(current)
+        confirmed = {(r['scan_id'], r['bscan']) for r in records if r['status'] == 'Confirmed'}
+        remaining = sum((q['scan_id'], q['bscan']) not in confirmed for q in self.queue)
+        self.case_count.setText(f'{len(records)} saved · {len(confirmed)} confirmed · {remaining} assigned remaining\n'
+            f'{len(current)} saved / {self.volume.images.shape[0]} available B-scans in this volume · {len(self.entries)} volumes available')
+
+    def show_saved(self):
+        self.save_all()
+        if self.saved_browser is None: self.saved_browser = Browser(self)
+        self.saved_browser.refresh(); self.saved_browser.show(); self.saved_browser.raise_()
+
+    def open_saved(self, record, discussion=False):
+        if discussion or record['reviewer'] != self.reviewer:
+            self.save_all()
+            if not self.read_only:
+                path = self.output / 'discussion_exposure.json'
+                entries = read(path) if path.exists() else []
+                write(path, entries + [dict(timestamp=time.time(), observer=self.reviewer, owner=record['reviewer'],
+                    scan_id=record['scan_id'], bscan=record['bscan'], source_record=record['path'])])
+            output = OUT / 'reviewers' / record['reviewer']
+            # Isolated synthetic tests keep their reviewer directory, too.
+            if record['reviewer'] == self.reviewer: output = self.output
+            window = Window(record['reviewer'], entries=self.entries, output=output, autoload=False, read_only=True)
+            self.discussion_windows.append(window)
+            window.show(); window.load_scan(window.by_id[record['scan_id']], record['bscan'])
+        else:
+            self.load_scan(self.by_id[record['scan_id']], record['bscan'])
+
+    def next_unreviewed(self):
+        records = {(r['scan_id'], r['bscan']): r for r in saved_index(self.reviewer, self.output)}
+        if self.queue:
+            candidates = [(self.by_id[q['scan_id']], q['bscan']) for q in self.queue if q['scan_id'] in self.by_id
+                and records.get((q['scan_id'], q['bscan']), {}).get('status') != 'Confirmed']
+        else:
+            candidates = [(i, b) for i, entry in enumerate(self.entries) for b in range(self.volume.images.shape[0])
+                if (entry['scan_id'], b) not in records]
+            candidates.sort(key=lambda pair: (pair <= (self.scan_index, self.row), pair))
+        if candidates: self.load_scan(*candidates[0])
+        else: self.statusBar().showMessage('No remaining cases in this review list.')
+
+    def schedule_context_refresh(self):
+        if self.volume is None: return
+        from .providers import context_signature
+        signature = context_signature(self.volume.scan.scan_id)
+        if signature != self._context_signature:
+            self._context_signature = signature
+            self.overlay_timer.start(750)
 
 
 def main():
@@ -604,11 +759,16 @@ def main():
     parser.add_argument('--reviewer')
     parser.add_argument('--queue', type=Path)
     parser.add_argument('--shared', action='store_true')
+    parser.add_argument('--read-only', action='store_true', help='Inspect real records without writing annotations')
+    parser.add_argument('--scan')
+    parser.add_argument('--bscan', type=int, default=256)
     args = parser.parse_args()
     app = QtWidgets.QApplication([])
     configure_v3_app(app)
     if args.shared:
         latest = OUT / 'review_queues/latest_shared.json'
+        if not latest.exists():
+            latest = V3 / 'review_queues/latest_shared.json'
         if not latest.exists():
             QtWidgets.QMessageBox.information(None, 'No shared queue yet', 'The lead reviewer must first flag cases and export a colleagues’ queue.')
             return
@@ -620,7 +780,7 @@ def main():
             return
         args.reviewer = value
     try:
-        window = Window(args.reviewer, args.queue)
+        window = Window(args.reviewer, args.queue, autoload=not bool(args.scan), read_only=args.read_only)
     except Exception as exc:
         QtWidgets.QMessageBox.critical(None, 'Unable to open reviewer', str(exc))
         return
@@ -633,6 +793,8 @@ def main():
             scan_id=window.volume.scan.scan_id, bscan=window.row, visible=window.isVisible(),
             volumes_available=len(window.entries), timestamp=time.time()))
     window.ready.connect(record_ready)
+    if args.scan:
+        QtCore.QTimer.singleShot(0, lambda: window.load_scan(window.by_id[args.scan], args.bscan))
     QtCore.QTimer.singleShot(150, window.fit)
     app.exec()
 

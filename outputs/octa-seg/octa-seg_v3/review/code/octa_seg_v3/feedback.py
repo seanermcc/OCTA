@@ -38,18 +38,20 @@ def anchored_order(z, active, touched, trace, anatomy, excluded):
     Do not clamp neighbors at image edges: impossible geometry remains explicit.
     Hidden display curves still participate; absent/no-trace curves do not.
     """
-    for x in np.flatnonzero(touched & ~excluded):
-        if not np.isfinite(z[active, x]):
-            continue
-        for direction in (-1, 1):
-            anchor = z[active, x]
-            for k in range(active + direction, len(z) if direction > 0 else -1, direction):
-                if not np.isfinite(z[k, x]) or trace[k, x] == 0 or anatomy[k, x] == 0:
-                    continue
-                limit = anchor + direction
-                if direction * (z[k, x] - limit) < 0:
-                    z[k, x] = limit
-                anchor = z[k, x]
+    initial = touched & ~excluded & np.isfinite(z[active])
+    for direction in (-1, 1):
+        pending = initial.copy()
+        anchor = z[active].copy()
+        for k in range(active + direction, len(z) if direction > 0 else -1, direction):
+            available = np.isfinite(z[k]) & (trace[k] != 0) & (anatomy[k] != 0)
+            limit = anchor + direction
+            colliding = direction * (z[k] - limit) < 0
+            moved = pending & available & colliding
+            z[k, moved] = limit[moved]
+            anchor[moved] = z[k, moved]
+            pending &= ~available | colliding
+            if not pending.any():
+                break
     return z
 
 
@@ -67,6 +69,8 @@ def resolve(events, baseline, offset, depth):
     displaced = np.zeros(shape, bool)
     reviewed = np.zeros(shape, bool)
     approved = np.zeros(shape, bool)
+    # Display continuity is independent of revision-specific training approval.
+    display_reliable = np.zeros(shape, bool)
     excluded = np.zeros(width, bool)
     region = np.full(width, -1, np.int8)
     region_revision = np.full(width, -1, int)
@@ -79,6 +83,11 @@ def resolve(events, baseline, offset, depth):
     for revision, event in enumerate(events):
         action = event['action']
         if action == 'case_metadata':
+            if 'data_role' in event['values'] and event['values']['data_role'] != metadata['data_role']:
+                if had_confirmation:
+                    approved[:] = False
+                    confirmation = None
+                geometry_revision = event.get('id', 'legacy-' + str(revision))
             metadata.update(event['values'])
             continue
         if action == 'confirm_bscan':
@@ -100,6 +109,7 @@ def resolve(events, baseline, offset, depth):
             if not np.array_equal(np.asarray(snapshot.get('approved'), bool), approved):
                 raise ValueError('Confirmation approved mask differs from explicit exceptions')
             confirmation = event
+            display_reliable = approved.copy()
             had_confirmation = True
             continue
         if event.get('semantics', 1) >= 2:
@@ -147,6 +157,17 @@ def resolve(events, baseline, offset, depth):
             yy = np.bincount(inverse, weights=ys) / np.bincount(inverse)
             explicit = np.flatnonzero(support)
             z[k, explicit] = np.clip(np.interp(explicit, unique, yy), offset, offset + depth - 1)
+            if event.get('semantics', 1) >= 2:
+                blocked = (trace[k] == 0) | (anatomy[k] == 0) | excluded | ~np.isfinite(before[k])
+                allowed_joins = joins.copy()
+                for direction, edge in ((-1, explicit[0]), (1, explicit[-1])):
+                    for x in range(edge + direction, width if direction > 0 else -1, direction):
+                        if blocked[x]:
+                            if direction < 0: allowed_joins[:x+1] = False
+                            else: allowed_joins[x:] = False
+                            break
+                z[k, ~support & ~allowed_joins] = before[k, ~support & ~allowed_joins]
+                joins = allowed_joins
             before_order = z.copy()
             if event.get('semantics', 1) >= 2:
                 # NaN joins stay absent; drawing cannot erase unrelated finite values.
@@ -165,8 +186,9 @@ def resolve(events, baseline, offset, depth):
             changed = ~np.isclose(z, before, atol=1e-6, rtol=0, equal_nan=True)
             reviewed[changed] = False
             approved[changed] = False
-            reliability[changed & (reliability == 1)] = -1
-            rel_revision[changed & (reliability == -1)] = -1
+            if event.get('semantics', 1) < 3:
+                reliability[changed & (reliability == 1)] = -1
+                rel_revision[changed & (reliability == -1)] = -1
             drawn[k] |= support
             taper[k] |= joins
             taper &= ~drawn
@@ -202,10 +224,12 @@ def resolve(events, baseline, offset, depth):
             elif action == 'clear_absence':
                 anatomy[k, span] = -1
             elif action == 'clear_marks':
+                display_reliable[k, span] = False
                 trace[k, span] = reliability[k, span] = -1
                 rel_revision[k, span] = -1
                 reviewed[k, span] = False
             elif action == 'reset_boundary':
+                display_reliable[k, span] = False
                 z[k, span] = baseline[k, span]
                 for plane in (drawn, taper, displaced, reviewed, approved):
                     plane[k, span] = False
@@ -234,7 +258,8 @@ def resolve(events, baseline, offset, depth):
         approved &= ~displaced
     result = dict(positions=z, trace=trace, reliability=reliability, anatomy=anatomy,
                 drawn=drawn, taper=taper, displaced=displaced, reviewed=reviewed,
-                approved=approved, excluded=excluded, region=region, metadata=metadata,
+                approved=approved, display_reliable=display_reliable,
+                excluded=excluded, region=region, metadata=metadata,
                 n_strokes=strokes, confirmation=confirmation, geometry_revision=geometry_revision,
                 review_status='Confirmed' if confirmation else 'Needs reconfirmation' if had_confirmation else 'Draft')
     result['valid_geometry'], result['unresolved'] = geometry(result, offset, depth)
@@ -262,6 +287,15 @@ def position_targets(resolved, shadow, valid_geometry):
 def training_targets(record, baseline, offset, depth, shadow, role='development'):
     """Authoritative importer: role-gated NEW whole-confirmed pool, never implicit NPZ labels."""
     r = resolve(record['events'][:record['cursor']], baseline, offset, depth)
+    if record.get('pinned_data_role'):
+        r['metadata']['data_role'] = record['pinned_data_role']
+    confirmation = r.get('confirmation')
+    if confirmation:
+        for key in ('reviewer_id', 'scan_id', 'bscan', 'model_id', 'source'):
+            if confirmation.get(key) != record.get(key):
+                raise ValueError('Confirmed snapshot identity differs from journal: ' + key)
+        if confirmation.get('boundary_names') != record.get('boundary_names', confirmation['boundary_names']):
+            raise ValueError('Confirmed boundary definitions differ from journal')
     targets = position_targets(r, shadow, r['valid_geometry'])
     eligible = (record.get('training_eligible') is True and not record['scan_id'].startswith('SYNTHETIC')
                 and r['metadata']['data_role'] == role and role in ('development', 'assessment')
@@ -271,6 +305,7 @@ def training_targets(record, baseline, offset, depth, shadow, role='development'
     targets['ambiguous_manual'] &= eligible
     targets['ambiguous_candidate'] = (r['reliability'] == 0) & (r['trace'] != 0) & (r['anatomy'] != 0)
     targets['ambiguous_candidate'] &= np.isfinite(r['positions']) & ~r['excluded'][None] & ~np.asarray(shadow)[None] & eligible
+    targets['ambiguous_candidate'] &= (r['positions'] >= offset) & (r['positions'] <= offset+depth-1)
     targets.update(positions=r['positions'], drawn=r['drawn'], joined=r['taper'], displaced=r['displaced'],
                    review_status=r['review_status'], eligible=eligible)
     if not eligible:

@@ -1,5 +1,7 @@
 # OCT-A tree shrew CNV analysis pipeline
 
+**Whole-B-scan review (2026-09-15):** the replacement [octa-seg_v3 review GUI](outputs/octa-seg/octa-seg_v3/review/START_HERE.md) explicitly approves inspected unchanged, drawn, joined and moved final positions when the entire B-scan is confirmed. Explicit exceptions remain masked. This new contract supersedes drawn-only rules only for valid new confirmations; historical labels and earlier model training retain their original meaning. No model was trained in this GUI task.
+
 ## Latest models and demonstration — September 15, 2026
 
 Start with **[DEMO_GUIDE.md](DEMO_GUIDE.md)** for the current layer v2/v3,

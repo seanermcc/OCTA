@@ -2,6 +2,16 @@
 
 Prepared September 15, 2026, from the saved local release reports and completion records.
 
+**Latest v3 GUI update:** the active implementation is now in
+`outputs\octa-seg\octa-seg_v3\review`. The root demo menu and original v3
+launchers open this replacement. It adds **Confirm entire B-scan**, which
+approves the final inspected segmentation including unchanged automatic curves,
+while retaining explicit unreliable/not-traceable exceptions. Saved work stays
+Draft until confirmed; later geometry/state edits require reconfirmation.
+Use **My saved reviews** to resume work. See the updated
+[review guide](outputs/octa-seg/octa-seg_v3/review/START_HERE.md) for current
+gestures, confirmation semantics, and storage paths. The position model remains frozen.
+
 ## Start here tomorrow
 
 **Project folder: `G:\OCT_TreeShrew\octa`**
