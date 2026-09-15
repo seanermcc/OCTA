@@ -39,6 +39,15 @@ outputs/**
 !outputs/**/
 !outputs/**/*.md
 
+# Versioned applications live alongside their local datasets. Preserve their
+# executable source and launchers without publishing arrays or human labels.
+!outputs/**/*.py
+!outputs/**/*.cmd
+!outputs/**/*.bat
+!outputs/**/*.ps1
+!outputs/**/gallery_template.html
+!outputs/**/gallery-review.js
+
 # Local logs and one-off machine migration helper
 *.log
 organize.bat

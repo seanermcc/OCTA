@@ -1,5 +1,20 @@
 # OCT-A tree shrew CNV analysis pipeline
 
+## Latest models and demonstration — September 15, 2026
+
+Start with **[DEMO_GUIDE.md](DEMO_GUIDE.md)** for the current layer v2/v3,
+CNV U-Net v6, vessel/ONH v1/v2, thickness viewer, exact local folders,
+and work-computer setup. Double-click **[SHOW_MODELS.cmd](SHOW_MODELS.cmd)**
+for one menu, or run `SHOW_MODELS.cmd --check` from Anaconda Prompt.
+
+The CNV v6 inventory now covers **324 processed acquisitions**; the layer and
+vessel releases retain their earlier 314-acquisition selections. Layer v2/v3
+are review/policy releases using frozen position weights. Learned vessel/ONH
+v2 is complete but **not recommended to replace the frozen v1 baseline**.
+The older dated status sections below describe historical development stages.
+Versioned application source and launchers under `outputs` are now included
+in Git; model weights, image arrays and human annotations remain local.
+
 **Preliminary ONH atlas implementation (2026-09-11):** `code/control_map_v1`
 reads the completed octa-thick exports to construct per-eye A/B maps, an
 animal-balanced composite, and vessel-registered repeated-tissue summaries.

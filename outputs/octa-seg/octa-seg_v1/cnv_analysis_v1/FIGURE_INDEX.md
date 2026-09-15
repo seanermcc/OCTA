@@ -1,5 +1,8 @@
 # CNV analysis figures
 
+<!-- overview-links -->
+**Start here:** [Cohort summary](SUMMARY.png) · [Segmentation coverage](SEGMENTATION_COVERAGE.png) · [What was included](SUMMARY.md)
+
 Completed analysis: 123 figures; 314 frozen scan inputs; 62 manual footprints in 19 scans from 9 animals.
 
 The normalized post-D0 cohort plots include 7 animals. Clipped outlines remain in absolute-distance tables; prelaser outlines remain separate.

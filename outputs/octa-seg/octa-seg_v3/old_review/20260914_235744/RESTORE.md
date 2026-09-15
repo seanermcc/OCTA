@@ -1,0 +1,3 @@
+# Restore old reviewer
+
+Close any old GUI/writer first. Extract snapshot.zip into a separate empty project root: paths are project-relative. Compare every entry with manifest.json SHA-256 before use. Restore the listed code and top-level launchers only after backing up the current files. Point large frozen providers at the original paths listed in the manifest; do not copy acquisitions or checkpoints. Never overwrite live reviewer records with this point-in-time copy. Historical reviewer originals and shared queues remain in the original v3 folder. The old GUI is permitted to remain running during this copy-only migration; stable_during_copy reports each copy check.

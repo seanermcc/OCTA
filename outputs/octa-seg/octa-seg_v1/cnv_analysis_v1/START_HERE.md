@@ -1,5 +1,8 @@
 # cnv_analysis_v1
 
+<!-- overview-links -->
+**Start here:** [Cohort summary](SUMMARY.png) · [Segmentation coverage](SEGMENTATION_COVERAGE.png) · [What was included](SUMMARY.md)
+
 Spatial and longitudinal CNV thickness analysis, using the manual CNV outlines
 and subsequent region classifications. This is an **experimental measurement
 workflow**; octa-seg_v1 has not become a validated measurement model.

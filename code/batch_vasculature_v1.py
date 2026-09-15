@@ -135,6 +135,9 @@ def main():
     write_json(OUT / 'status.json', {k:v for k,v in summary.items() if k != 'scans'})
     entries = ''.join(f'<figure><a href="previews/{r["scan_id"]}.png"><img loading="lazy" src="previews/{r["scan_id"]}.png"></a><figcaption>{r["scan_id"]}</figcaption></figure>' for r in records if r['status']=='complete')
     (OUT / 'index.html').write_text('<!doctype html><meta charset="utf-8"><title>octa-vessel_seg_v1-batch</title><style>body{font:16px sans-serif;background:#171717;color:white}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}figure{margin:12px}img{width:100%}figcaption{font-size:12px}</style><h1>Major-vessel automatic proposals</h1><p>Frozen v1 batch. Blue: vessels. Green: existing human ONH exclusion. Automatic, unreviewed masks.</p><main>'+entries+'</main>', encoding='utf-8')
+    if (OUT / 'gallery-review.js').exists():
+        gallery = OUT / 'index.html'
+        gallery.write_text(gallery.read_text(encoding='utf-8') + '<script src="gallery-review.js"></script>', encoding='utf-8')
     if failed:
         raise RuntimeError(f'{len(failed)} scans failed; see manifest.json; rerun to retry')
 

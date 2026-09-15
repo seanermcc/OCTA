@@ -1,0 +1,10 @@
+@echo off
+setlocal
+call D:\Anaconda\Scripts\activate.bat octa
+if errorlevel 1 exit /b 1
+set "PYTHONPATH=%~dp0code;%~dp0..\octa-seg_v2\code;%~dp0..\..\..\code"
+set "PYTHONDONTWRITEBYTECODE=1"
+set "QT_QPA_PLATFORM=offscreen"
+pushd "%~dp0"
+python -m octa_seg_v3.verify %*
+popd
