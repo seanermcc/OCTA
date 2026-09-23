@@ -1,0 +1,3 @@
+[submodule "bigwarp"]
+	path = outputs/octa-reg_v3/tools/bigwarp
+	url = https://github.com/saalfeldlab/bigwarp.git
