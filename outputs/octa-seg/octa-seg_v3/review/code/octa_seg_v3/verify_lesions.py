@@ -327,7 +327,7 @@ def gui_checks(app, folder):
     click(ed.confirm_info); assert ed.confirm_key.isVisible()
     click(ed.confirm_info); assert not ed.confirm_key.isVisible()
     click(ed.cnv_info); assert ed.cnv_hint.isVisible()
-    assert 'horizontal extent' in ed.cnv_hint.text() and 'lower depth boundary' in ed.cnv_hint.text()
+    assert L.CORE_DEFINITION in ed.cnv_hint.text() and L.FULL_DEFINITION in ed.cnv_hint.text()
     click(ed.cnv_info); assert not ed.cnv_hint.isVisible()
     assert ed.body.layout().indexOf(ed.surface_list) < ed.body.layout().indexOf(ed.all_boundaries) < ed.body.layout().indexOf(ed.tools_box)
     click(ed.all_boundaries)
@@ -342,15 +342,15 @@ def gui_checks(app, folder):
     assert ed.all_boundaries.text().endswith('SOME')
     click(ed.all_boundaries)
     assert all(item.isVisible() for item in c._surface_items)
-    click(tool.buttons['cnv_region'])
+    click(tool.buttons['cnv_core'])
     assert not ed.journal.path.exists()
     drag((100, 30), (180, 220))
-    assert ed.resolved['lesions']['cnv_region'][101:180].all()
+    assert ed.resolved['lesions']['cnv_core'][101:180].all()
     assert not ed.resolved['excluded'].any()
     assert tool.erase.text() == 'Erase' and tool.erase.isEnabled()
     click(tool.erase)
     drag((110, 20), (115, 40))
-    assert not ed.resolved['lesions']['cnv_region'][111:115].any()
+    assert not ed.resolved['lesions']['cnv_core'][111:115].any()
     ed.undo_redo(-1)
     click(tool.erase)
     tool.select(None)
@@ -362,17 +362,17 @@ def gui_checks(app, folder):
         click(ed.mark_buttons[marking])
         ed.unreliable_draw.setChecked(True)
         cursor = ed.journal.data['cursor']
-        click(tool.buttons['cnv_region'])
+        click(tool.buttons['cnv_core'])
         assert ed.journal.data['cursor'] == cursor  # A tool selection is never a judgment.
         assert ed.mark_mode is None and not ed.unreliable_draw.isChecked()
         assert not any(button.isChecked() for button in ed.mark_buttons.values())
         drag((100, 30), (180, 220), button=Qt.MouseButton.RightButton)
-        assert ed.journal.events[-1]['action'] == 'cnv_region'
+        assert ed.journal.events[-1]['action'] == 'cnv_core'
         np.testing.assert_array_equal(ed.resolved['trace'], trace)
         np.testing.assert_array_equal(ed.resolved['reliability'], reliability)
         assert not ed.resolved['excluded'].any()
     drag((101, 20), (105, 40), ctrl=True)
-    assert not ed.resolved['lesions']['cnv_region'][102:105].any()
+    assert not ed.resolved['lesions']['cnv_core'][102:105].any()
     ed.undo_redo(-1)
     click(tool.buttons['cnv_edge'])
     drag((120, 170), (160, 175))
@@ -402,7 +402,7 @@ def gui_checks(app, folder):
     drag((230, 140), (235, 140))
     cursor = ed.journal.data['cursor']
     assert not answer_confirmation(QtWidgets.QMessageBox.StandardButton.No)
-    assert 'outside CNV region' in ed.status.text() and '#ff3030' in ed.status.styleSheet()
+    assert 'outside CNV-Core / Full-CNV' in ed.status.text() and '#ff3030' in ed.status.styleSheet()
     assert ed.journal.data['cursor'] == cursor
     assert answer_confirmation(QtWidgets.QMessageBox.StandardButton.Yes)
     assert 'hyper_ref_outside_region' in ed.resolved['confirmation']['acknowledged_warnings']
@@ -550,7 +550,7 @@ def gui_checks(app, folder):
     return dict(callback_errors=errors, gestures=True, saved_reopened=True, undo_redo=True,
                 confirmation=True, confirmation_override_cancel_save_reopen=True, bright_red_unresolved_bars=True,
                 independent_cnv_edge_confirmation=True, information_toggles=True, all_boundaries_toggle=True,
-                cnv_region_tool_priority_preserves_judgments=True, universal_erase_save_reopen_undo=True,
+                cnv_core_tool_priority_preserves_judgments=True, universal_erase_save_reopen_undo=True,
                 navigator_green_confirmed_orange_current=True, persistent_vessel_shadow_guard=True,
                 column_wide_shadow_override_orange_tint=True, read_only=True)
 

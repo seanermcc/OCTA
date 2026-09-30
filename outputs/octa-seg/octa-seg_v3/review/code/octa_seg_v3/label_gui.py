@@ -58,6 +58,27 @@ class Journal:
             if self.data[key] != identity[key]:
                 raise ValueError(f'Annotation {key} differs from this frozen provider. No annotations were changed.')
 
+    def migrate_cnv(self, baseline, offset, depth):
+        """User-authorized schema migration; never fabricate a stroke or confirmation."""
+        if self.read_only:
+            return False
+        kind = L.LEGACY_MAPPING.get(self.data['reviewer_id'])
+        if not kind or not self.events or any(e['action'] == L.MIGRATION_ACTION or
+                e.get('lesion_definition') == L.DEFINITION_VERSION for e in self.events):
+            return False
+        before = resolve(self.events, baseline, offset, depth)
+        event = dict(id=uuid.uuid4().hex, timestamp=time.time(), action=L.MIGRATION_ACTION,
+                     reviewer_id=self.data['reviewer_id'], from_definition=L.LEGACY_VERSION,
+                     lesion_definition=L.DEFINITION_VERSION, destination=kind,
+                     legacy_region_runs=L.runs(before['lesions']['cnv_region']),
+                     reason='User requested lead CNV Region -> CNV-Core; shichu CNV Region -> Full-CNV; opposite category empty.')
+        after = resolve(self.events + [event], baseline, offset, depth)
+        for key in ('positions', 'trace', 'reliability', 'anatomy', 'approved', 'excluded'):
+            if not np.array_equal(before[key], after[key], equal_nan=True):
+                raise ValueError('CNV migration must not change layer annotations')
+        self.change(event)
+        return True
+
     @property
     def events(self):
         return self.data['events'][:self.data['cursor']]
@@ -87,7 +108,9 @@ class Journal:
             proposed['events'] = proposed['events'][:proposed['cursor']] + [copy.deepcopy(event)]
             proposed['cursor'] = len(proposed['events'])
         else:
-            proposed['cursor'] = max(0, min(len(proposed['events']), proposed['cursor'] + direction))
+            # The schema transition is an undo floor; original revisions remain in history/archive.
+            floor = max((i + 1 for i, ev in enumerate(proposed['events']) if ev['action'] == L.MIGRATION_ACTION), default=0)
+            proposed['cursor'] = max(floor, min(len(proposed['events']), proposed['cursor'] + direction))
         proposed['revision'] += 1
         proposed['active_seconds'] += max(0., seconds)
         proposed['history'].append(dict(revision=proposed['revision'], timestamp=time.time(), cursor=proposed['cursor'],
@@ -139,14 +162,19 @@ class Editor(BoundaryEditor):
         self.only_active.setText('Show selected boundary only')
         self.surface_list.setToolTip('Select a boundary here or use 1–8 / [ ]. Checkboxes only control display.')
         dock = self.findChildren(QtWidgets.QDockWidget)[0]
-        dock.setMinimumWidth(300)
-        dock.setMaximumWidth(355)
+        dock.setMinimumWidth(440)
+        dock.setMaximumWidth(485)
         self.body = dock.widget().widget()
         for button in self.body.findChildren(QtWidgets.QToolButton):
             if 'gestures' in button.text():
                 button.hide()
         from .controls import build
         build(self)
+        if os.sys.platform == 'darwin':
+            for widget in self.body.findChildren(QtWidgets.QWidget):
+                widget.setToolTip(widget.toolTip().replace('Ctrl', 'Command').replace('Alt', 'Option'))
+                if isinstance(widget, (QtWidgets.QLabel, QtWidgets.QAbstractButton)):
+                    widget.setText(widget.text().replace('Ctrl', 'Command').replace('Alt', 'Option'))
         self.canvas.viewport().installEventFilter(self)
         self.canvas.installEventFilter(self)
         self.timer = QtCore.QTimer(self)
@@ -233,6 +261,8 @@ class Editor(BoundaryEditor):
         name = f'{volume.scan.scan_id}_b{row:04d}.json'
         self.journal = Journal(self.output / 'journals' / name, identity,
             legacy_path=V3 / 'reviewers' / self.reviewer / 'journals' / name, read_only=self.read_only)
+        if not self.read_only:
+            self.journal.migrate_cnv(self.volume.data['raw_position_branch'][self.row], self.offset, self.pack.images.shape[1])
         self._loading = False
         self.recompute()
         self._saved_signature = self.signature()
@@ -246,7 +276,7 @@ class Editor(BoundaryEditor):
             if (self.resolved.get('confirmation') or {}).get('acknowledged_warnings'):
                 status += ' · review warnings acknowledged'
                 self.status.setStyleSheet('color: #ff3030;')
-            if status == 'Confirmed' and self.resolved['lesion_confirmation'] is None:
+            if self.resolved.get('confirmation') and self.resolved['lesion_confirmation'] is None:
                 status += ' · layers only; lesion tools not yet reviewed'
             self.status.setText(('Discussion · read only · ' if self.read_only else '') +
                 f'B-scan {self.row} · {status}' + (' · existing saved work' if self.journal.data['events'] else ''))
@@ -370,7 +400,8 @@ class Editor(BoundaryEditor):
             if mode == 'cnv_edge' and action in ('unreliable', 'not_traceable', 'reliable', 'traceable', 'clear_marks', 'absent', 'reset_boundary'):
                 self.record_event('cnv_edge_mark', lo, hi, boundaries=[], mark=action, lesion_definition=L.DEFINITION_VERSION)
             else:
-                self.status.setText('Select a retinal boundary to use that boundary action. Ctrl+drag erases the selected lesion tool.')
+                modifier = 'Command' if os.sys.platform == 'darwin' else 'Ctrl'
+                self.status.setText(f'Select a retinal boundary to use that boundary action. {modifier}+drag erases the selected lesion tool.')
             return
         ks = list(range(self.n_boundaries)) if action in ('review_all', 'unreliable_region', 'clear_region', 'exclude_image', 'clear_exclusion') else [self.s]
         if action in ('reviewed', 'review_all', 'approve_position'):
@@ -464,7 +495,7 @@ class Editor(BoundaryEditor):
                 self._extras.remove(item)
         for item in self.canvas._weak_items:
             item.setPath(QtGui.QPainterPath())
-        if self._lesion is not None:
+        if self._lesion is not None and self.show_auto_cnv.isChecked():
             from .cnv_context import PINK
             path = QtGui.QPainterPath()
             borders = QtGui.QPainterPath()
@@ -483,7 +514,7 @@ class Editor(BoundaryEditor):
                 item.setZValue(4)
                 item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
                 item.setData(0, 'cnv_context_outline' if outline else 'cnv_context_fill')
-                item.setToolTip('Saved en-face CNV footprint at this native B-scan, projected through the full displayed depth.')
+                item.setToolTip('Separate octa-auto_CNV footprint at this native B-scan, projected through the full displayed depth.')
                 self._extras.append(item)
         # Show the effective automatic shadow mask, separately from manual judgments.
         for mask, overridden in ((self.rendered['effective_shadow_mask'], False),

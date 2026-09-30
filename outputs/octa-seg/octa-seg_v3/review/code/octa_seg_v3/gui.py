@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 import numpy as np
 from .common import OUT, V2, V3, read, write, reviewer_id, CATEGORIES, ROLES
-from .saved import index as saved_index, Browser
+from .saved import index as saved_index, Browser, SharedBrowser
 from .controls import collapsible, info_button
 from .data import discover, VolumeCache, THICKNESS_NAMES, THICKNESS_LABELS
 from .label_gui import Editor, Qt, QtCore, QtGui, QtWidgets
@@ -31,12 +31,12 @@ Ctrl + right-drag: clear image exclusion<br>
 1–8 or [ ]: select boundary<br>
 ← / → or PgUp / PgDn: previous / next B-scan<br>
 Ctrl+Z / Ctrl+Y: undo / redo · Ctrl+S: save<br>
-CNV region: left-drag marks full-depth columns<br>
+CNV-Core / Full-CNV: left-drag marks each category independently<br>
 CNV edge: left-drag traces the lesion bottom<br>
 Hyper_Ref: left-drag paints dots<br>
 Erase / E: erase selected boundary, region, edge or paint<br>
 Ctrl+drag: erase the selected lesion tool<br>
-Manual region: purple · edge: pink · dots: gold<br>
+CNV-Core: purple · Full-CNV: cyan · auto-CNV: pink<br>CNV edge: pale pink · dots: gold<br>
 Light orange: automatic shadow; normal reliable strokes clear its columns for all boundaries<br>
 Wheel: zoom · middle-drag / Space: pan · F: fit<br><br>
 <b>Case selection key</b><br>
@@ -55,6 +55,11 @@ Gap: no trace, judged absence, or unusable image<br>
 Not traceable ≠ anatomically absent.<br>
 Joins and moved neighbors keep their reliability.<br>
 Missing judgments stay unknown.'''
+
+
+import sys
+if sys.platform == 'darwin':
+    GESTURES = GESTURES.replace('Ctrl', 'Command').replace('Alt', 'Option')
 
 
 def configure_v3_app(app):
@@ -131,6 +136,7 @@ class Window(QtWidgets.QMainWindow):
     def __init__(self, reviewer='lead', queue_path=None, entries=None, output=None, autoload=True, cache=None, queue_output=None, read_only=False):
         super().__init__()
         self.read_only = read_only
+        self.shared_browser = None
         self.saved_browser = None
         self.discussion_windows = []
         self.reviewer = reviewer_id(reviewer)
@@ -167,6 +173,7 @@ class Window(QtWidgets.QMainWindow):
         self.editor.stepRequested.connect(lambda step: self.navigate(self.row + step))
         self.editor.cursorColumn.connect(self.cursor_column)
         self.editor.changed.connect(self.on_editor_changed)
+        self.editor.show_auto_cnv.toggled.connect(lambda _: self.update_map())
         self.navigator = Navigator('Volume navigator')
         self.navigator.set_mode('navigate')
         self.navigator.navigated.connect(lambda b, x: self.navigate(b, x))
@@ -224,6 +231,10 @@ class Window(QtWidgets.QMainWindow):
         layout.addWidget(self.navigator)
         self.review_legend = QtWidgets.QLabel('<b style="color:#41e36f">Green: confirmed</b> · <span style="color:#ffea00">Yellow dashes: draft / legacy</span><br><span style="color:#ff9600">Orange: current native B-scan</span>')
         self.review_legend.setWordWrap(True); layout.addWidget(self.review_legend)
+        self.shared_button = QtWidgets.QPushButton('★ Shared / starred samples')
+        self.shared_button.setToolTip('All confirmed lead B-scans plus explicitly shared cases; stars mark ambiguity. Open independently under your own ID')
+        self.shared_button.clicked.connect(self.show_shared)
+        layout.addWidget(self.shared_button)
         # Both controls are below the same image, as requested.
         self.map_tabs = QtWidgets.QTabBar()
         self.map_tabs.addTab('En face')
@@ -586,9 +597,9 @@ class Window(QtWidgets.QMainWindow):
             self.coverage_hint.hide()
             self.navigator.set_image(self.volume.structural)
             cnv, vessel, onh, edge = self.volume.overlays[:4]
-            self.navigator.set_annotations(cnv, vessel, onh, edge)
+            self.navigator.set_annotations(cnv if self.editor.show_auto_cnv.isChecked() else np.zeros_like(cnv), vessel, onh, edge)
             self.navigator._overlay.setVisible(self.map_choice.currentIndex() == 0)
-            self.map_scale.setText('Pink outline + light fill: CNV · blue: vessel · green: ONH\n' + self.volume.overlays[4]['status'])
+            self.map_scale.setText('Pink: auto-CNV (independent toggle) · blue: vessel · green: ONH\n' + self.volume.overlays[4]['status'])
             self.colorbar.hide()
         else:
             key = self.map_choice.currentData()
@@ -770,6 +781,25 @@ class Window(QtWidgets.QMainWindow):
         self.save_all()
         if self.saved_browser is None: self.saved_browser = Browser(self)
         self.saved_browser.refresh(); self.saved_browser.show(); self.saved_browser.raise_()
+
+    def show_shared(self):
+        self.save_all()
+        if self.shared_browser is None: self.shared_browser = SharedBrowser(self)
+        self.shared_browser.refresh(); self.shared_browser.show(); self.shared_browser.raise_()
+
+    def use_shared_cases(self, rows, selected):
+        self.save_all()
+        self.queue = [{k: v for k, v in row.items() if k != 'starred'} for row in rows]
+        self.queue_definitions = {(q['scan_id'], q['bscan']): q for q in self.queue}
+        for q in self.queue:
+            key = (q['scan_id'], q['bscan'])
+            # An existing assessment reservation must survive selection changes.
+            q['data_role'] = self.roles.get(key, q['data_role'])
+            if q['data_role'] in ('assessment', 'practice'): self.roles[key] = q['data_role']
+        self.populate_queue()
+        self.progress_label.setText(f'{len(self.queue)} shared / starred B-scans · saving as {self.reviewer}')
+        self.goto_queue(selected + 1)
+        if self.shared_browser is not None: self.shared_browser.hide()
 
     def open_saved(self, record, discussion=False):
         if discussion or record['reviewer'] != self.reviewer:

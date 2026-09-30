@@ -1,0 +1,3 @@
+# Keep Mac launch scripts executable by bash after Windows checkouts.
+*.sh text eol=lf
+*.command text eol=lf

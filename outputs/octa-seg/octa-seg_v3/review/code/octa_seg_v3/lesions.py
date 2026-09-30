@@ -4,20 +4,48 @@ import json
 import numpy as np
 
 CONTRACT = 'cnv-lesion-review-1'
-DEFINITION_VERSION = 'cnv-lesion-tentative-1'
-DEFINITIONS = {
+LEGACY_VERSION = 'cnv-lesion-tentative-1'
+DEFINITION_VERSION = 'cnv-core-full-2'
+LEGACY_DEFINITIONS = {
     'status': 'tentative; revise after inspecting manual examples, before training',
     'CNV region': 'Manual lateral lesion extent; full-depth B-scan columns, not a tissue mask.',
     'CNV edge': 'Bottom of the dark outer-retinal lesion, above the RPE, within the CNV lesion.',
     'Hyper_Ref': 'Hyperreflective dots within the CNV lesion, above and separate from the RPE.',
 }
 # Add future definitions here; keep historical entries immutable.
-DEFINITION_VERSIONS = {DEFINITION_VERSION: DEFINITIONS}
-ACTIONS = {'cnv_region', 'cnv_edge', 'cnv_edge_mark', 'hyper_ref'}
+CORE_DEFINITION = 'CNV-Core is defined as the region where RPE is non-traceable with a loss of contrast (dark) blood-vessel invasion from the RPE'
+FULL_DEFINITION = 'Full-CNV Lesion is defined by regions where the RPE is clearly disrupted, and this should not depend on the hyper-reflective dots above the RPE'
+DEFINITIONS = {'CNV-Core': CORE_DEFINITION, 'Full-CNV Lesion (RPE-Disrupt)': FULL_DEFINITION,
+               'CNV edge': LEGACY_DEFINITIONS['CNV edge'], 'Hyper_Ref': LEGACY_DEFINITIONS['Hyper_Ref']}
+DEFINITION_VERSIONS = {LEGACY_VERSION: LEGACY_DEFINITIONS, DEFINITION_VERSION: DEFINITIONS}
+REGION_KEYS = ('cnv_core', 'cnv_full')
+REGION_COLORS = {'cnv_core': '#ac6beb', 'cnv_full': '#31dfd2'}
+MIGRATION_ACTION = 'migrate_cnv_distinctions'
+LEGACY_MAPPING = {'lead': 'cnv_core', 'shichu': 'cnv_full'}
+
+
+def region_union(state):
+    return state['cnv_region'] | state['cnv_core'] | state['cnv_full']
+
+
+def migrate(state, event):
+    kind = event.get('destination')
+    if (kind not in REGION_KEYS or event.get('lesion_definition') != DEFINITION_VERSION
+            or event.get('from_definition') != LEGACY_VERSION
+            or LEGACY_MAPPING.get(event.get('reviewer_id')) != kind
+            or any(state[k].any() for k in REGION_KEYS)):
+        raise ValueError('Invalid explicit CNV category migration')
+    if event.get('legacy_region_runs') != runs(state['cnv_region']):
+        raise ValueError('CNV migration does not match the original footprint')
+    state[kind][:] = state['cnv_region']
+    state['cnv_region'][:] = False
+
+ACTIONS = {'cnv_region', 'cnv_core', 'cnv_full', 'cnv_edge', 'cnv_edge_mark', 'hyper_ref', MIGRATION_ACTION}
 
 
 def empty(width, depth):
-    return dict(cnv_region=np.zeros(width, bool), cnv_edge=np.full(width, np.nan, np.float32),
+    return dict(cnv_core=np.zeros(width, bool), cnv_full=np.zeros(width, bool),
+                cnv_region=np.zeros(width, bool), cnv_edge=np.full(width, np.nan, np.float32),
                 cnv_edge_state=np.zeros(width, np.uint8), cnv_edge_unreliable=np.zeros(width, bool),
                 hyper_ref=np.zeros((depth, width), bool))
 
@@ -27,16 +55,19 @@ def runs(mask):
     return np.column_stack((edges[::2], edges[1::2])).tolist()
 
 
-def snapshot(state):
-    return dict(cnv_region=runs(state['cnv_region']),
+def snapshot(state, version=DEFINITION_VERSION):
+    result = dict(cnv_region=runs(state['cnv_region']),
                 cnv_edge=np.where(np.isfinite(state['cnv_edge']), state['cnv_edge'], None).tolist(),
                 cnv_edge_state=state['cnv_edge_state'].tolist(),
                 cnv_edge_unreliable=state['cnv_edge_unreliable'].tolist(),
                 hyper_ref_runs=runs(state['hyper_ref'].ravel()), shape=list(state['hyper_ref'].shape))
+    if version != LEGACY_VERSION:
+        result.update({k: runs(state[k]) for k in REGION_KEYS})
+    return result
 
 
-def digest(state):
-    return hashlib.sha256(json.dumps(snapshot(state), sort_keys=True, separators=(',', ':'),
+def digest(state, version=DEFINITION_VERSION):
+    return hashlib.sha256(json.dumps(snapshot(state, version), sort_keys=True, separators=(',', ':'),
                                      allow_nan=False).encode()).hexdigest()
 
 
@@ -74,8 +105,10 @@ def apply(state, event, offset):
     erase = event.get('erase', False)
     if not isinstance(erase, bool):
         raise ValueError('Invalid eraser state')
-    if action == 'cnv_region':
-        state['cnv_region'][lo:hi] = not erase
+    if action in ('cnv_region', *REGION_KEYS):
+        if action in REGION_KEYS and event['lesion_definition'] != DEFINITION_VERSION:
+            raise ValueError('New CNV categories require their explicit definitions')
+        state[action][lo:hi] = not erase
     elif action == 'cnv_edge':
         if erase:
             state['cnv_edge'][lo:hi] = np.nan
@@ -129,20 +162,22 @@ def apply(state, event, offset):
 
 
 def outside_region(state):
-    return (~state['cnv_region'] & (np.isfinite(state['cnv_edge']) |
+    return (~region_union(state) & (np.isfinite(state['cnv_edge']) |
             (state['cnv_edge_state'] != 0) | state['hyper_ref'].any(axis=0)))
 
 
 def targets(state, eligible, excluded, shadow, vessel=None):
     """Completed empty paint is negative inside the reviewed CNV region; drafts are masked."""
     usable = ~np.asarray(excluded) & ~np.asarray(shadow) & bool(eligible)
-    inside = usable & state['cnv_region']
+    inside = usable & region_union(state)
     edge_state = state['cnv_edge_state']
     edge_usable = usable if vessel is None else usable & ~np.asarray(vessel, bool)
-    return dict(cnv_region=state['cnv_region'].copy(), cnv_region_known=usable,
+    return dict(cnv_core=state['cnv_core'].copy(), cnv_full=state['cnv_full'].copy(),
+                cnv_core_known=usable.copy(), cnv_full_known=usable.copy(),
+                cnv_region=state['cnv_region'].copy(), cnv_region_known=usable,
                 cnv_edge=state['cnv_edge'].copy(), cnv_edge_state=edge_state.copy(),
                 cnv_edge_unreliable=state['cnv_edge_unreliable'].copy(),
-                cnv_edge_known=edge_usable & (state['cnv_region'] | (edge_state == 1)) & (edge_state < 2),
+                cnv_edge_known=edge_usable & (region_union(state) | (edge_state == 1)) & (edge_state < 2),
                 cnv_edge_valid=edge_usable & (edge_state == 1) & np.isfinite(state['cnv_edge']),
                 hyper_ref=state['hyper_ref'].copy(),
                 hyper_ref_known=(inside[None] | (usable[None] & state['hyper_ref'])))

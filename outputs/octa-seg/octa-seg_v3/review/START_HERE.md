@@ -1,3 +1,5 @@
+**Updated September 29, 2026:** CNV-Core and Full-CNV Lesion are independent manual categories. The pink auto-CNV overlay has its own toggle. See [definitions, migration, and saving](CNV_DISTINCTIONS.md).
+
 # octa-seg_v3 — whole-B-scan review
 
 Open **[OPEN_OCTA_SEG_V3.cmd](OPEN_OCTA_SEG_V3.cmd)**. The familiar launcher one folder above also opens this replacement. Use your own reviewer ID; `lead` reopens the lead's work.

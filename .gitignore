@@ -47,6 +47,19 @@ outputs/**
 !outputs/**/*.ps1
 !outputs/**/gallery_template.html
 !outputs/**/gallery-review.js
+!outputs/octo-vessel_onh_v2/manual_gallery_template.html
+!outputs/octo-vessel_onh_v2/check_manual_gallery.cjs
+outputs/vessel_manual_gallery_preview/
+
+# Mac reviewer build inputs are source, not generated data.
+!outputs/mac_boundary_20260923/support/start_mac.sh
+!outputs/mac_boundary_20260923/support/requirements-mac.txt
+!outputs/mac_boundary_20260923/OPEN_BOUNDRY_REVIEWER_MAC.command
+
+# Keep local pre-update recovery copies out of the published application.
+outputs/archived/
+outputs/git_pull_backup_*/
+outputs/shared_reviews_20260930/before/
 
 # Disposable project copies created by release path-verification tests.
 outputs/**/verification/paths*/

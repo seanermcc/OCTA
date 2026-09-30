@@ -40,7 +40,7 @@ def review_warnings(unresolved, lesion):
     warnings = {}
     if unresolved.any():
         warnings['unresolved_boundaries'] = {str(k): L.runs(mask) for k, mask in enumerate(unresolved) if mask.any()}
-    outside = ~lesion['cnv_region'] & lesion['hyper_ref'].any(axis=0)
+    outside = ~L.region_union(lesion) & lesion['hyper_ref'].any(axis=0)
     if outside.any():
         warnings['hyper_ref_outside_region'] = L.runs(outside)
     return warnings
@@ -100,6 +100,13 @@ def resolve(events, baseline, offset, depth):
     lesion_definition = None
     for revision, event in enumerate(events):
         action = event['action']
+        if action == L.MIGRATION_ACTION:
+            L.migrate(lesion, event)
+            lesion_definition = L.DEFINITION_VERSION
+            # A category rename does not re-confirm a new definition or a new absence.
+            # Existing layer geometry and its human confirmation remain intact.
+            lesion_confirmation = None
+            continue
         if action == 'case_metadata':
             if 'data_role' in event['values'] and event['values']['data_role'] != metadata['data_role']:
                 if had_confirmation:
@@ -138,8 +145,8 @@ def resolve(events, baseline, offset, depth):
                 if (event['lesion_contract'] != L.CONTRACT or version not in L.DEFINITION_VERSIONS
                         or (lesion_definition is not None and version != lesion_definition)
                         or event.get('lesion_definitions') != L.DEFINITION_VERSIONS.get(version)
-                        or event.get('lesion_digest') != L.digest(lesion)
-                        or event.get('lesion_snapshot') != L.snapshot(lesion)
+                        or event.get('lesion_digest') != L.digest(lesion, version)
+                        or event.get('lesion_snapshot') != L.snapshot(lesion, version)
                         or (policy is None and L.outside_region(lesion).any())):
                     raise ValueError('Lesion confirmation does not match the current definitions, region or annotations')
                 lesion_confirmation = event
@@ -380,6 +387,12 @@ def training_targets(record, baseline, offset, depth, shadow, role='development'
                    review_status=r['review_status'], eligible=eligible)
     lesion_eligible = eligible and r['lesion_confirmation'] is not None
     targets.update(L.targets(r['lesions'], lesion_eligible, r['excluded'], effective_shadow, vessel))
+    if not r['lesion_confirmation'] or r['lesion_confirmation'].get('lesion_definition') != L.DEFINITION_VERSION:
+        targets['cnv_core_known'][:] = False
+        targets['cnv_full_known'][:] = False
+    else:
+        # New categories must never be exported as negative legacy CNV Region targets.
+        targets['cnv_region_known'][:] = False
     targets.update(vessel_mask=np.zeros_like(shadow, dtype=bool) if vessel is None else np.asarray(vessel, bool).copy(),
                    shadow_mask=np.asarray(shadow, bool).copy(), effective_shadow_mask=effective_shadow,
                    shadow_override_columns=overridden,
@@ -387,7 +400,7 @@ def training_targets(record, baseline, offset, depth, shadow, role='development'
     if not include_shadow_overrides:
         # Exclude this cohort from all supervision, independently of manual unreliability.
         for key in ('approved_position', 'reliable_manual', 'ambiguous_manual', 'ambiguous_candidate',
-                    'cnv_region_known', 'cnv_edge_known', 'cnv_edge_valid', 'hyper_ref_known'):
+                    'cnv_region_known', 'cnv_core_known', 'cnv_full_known', 'cnv_edge_known', 'cnv_edge_valid', 'hyper_ref_known'):
             targets[key][..., overridden] = False
         for key in ('trace', 'reliability', 'anatomy'):
             targets[key][:, overridden] = -1

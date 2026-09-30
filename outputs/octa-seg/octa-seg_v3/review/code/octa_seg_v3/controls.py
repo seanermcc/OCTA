@@ -15,9 +15,9 @@ KEY = ('<b>Confirm entire B-scan approves the final segmentation, including unch
        'explicit not-traceable marks stay gaps. Masked positions do not become reliable training targets.<br><br>'
        'This confirms every boundary across the B-scan. Uncertain and untraceable areas are useful '
        'training judgments without becoming reliable positional targets.<br><br>'
-       'This also confirms CNV region, CNV edge and Hyper_Ref. Inside the marked CNV region, '
+       'This also confirms CNV-Core / Full-CNV, CNV edge and Hyper_Ref. Inside the union of the marked CNV-Core / Full-CNV regions, '
        'unpainted Hyper_Ref means absent. Drafts and old layer-only confirmations do not approve lesion targets. '
-       'CNV edge may extend outside CNV region. Other review warnings can be acknowledged in the completion popup; '
+       'CNV edge may extend outside CNV-Core / Full-CNV. Other review warnings can be acknowledged in the completion popup; '
        'invalid retinal positions remain excluded from positional training targets. '
        'Tentative definitions: CNV edge is the bottom of the dark outer-retinal lesion above RPE; '
        'Hyper_Ref marks dots above/separate from RPE within the lesion.')
@@ -30,7 +30,7 @@ def info_button(label, title):
     button.setFixedSize(23, 23)
     button.setAccessibleName(title)
     button.setToolTip(title)
-    button.setStyleSheet('QToolButton {border-radius:11px; font-weight:bold;} QToolButton:checked {background:#436b8b;}')
+    button.setStyleSheet('QToolButton {border:1px solid #aabccc; border-radius:11px; padding:0px; font-weight:bold;} QToolButton:checked {background:#436b8b;}')
     label.setWordWrap(True)
     label.hide()
     button.toggled.connect(label.setVisible)
@@ -59,7 +59,7 @@ def build(editor):
     e.all_boundaries.setObjectName('all_boundaries')
     e.all_boundaries.setCheckable(True)
     e.all_boundaries.setChecked(True)
-    e.all_boundaries.setToolTip('Show or hide all eight retinal boundaries plus CNV region, CNV edge and Hyper_Ref. Display only; saved annotations are unchanged.')
+    e.all_boundaries.setToolTip('Show or hide all eight retinal boundaries plus CNV-Core / Full-CNV, CNV edge and Hyper_Ref. Display only; saved annotations are unchanged.')
     e.all_boundaries.clicked.connect(lambda _: toggle_all_boundaries(e))
     row = QtWidgets.QHBoxLayout()
     e.mark_buttons = {}
@@ -89,20 +89,24 @@ def build(editor):
     layout.addLayout(draw_row)
     layout.addWidget(e.drawing_mode_hint)
     e.update_drawing_mode()
-    e.cnv_hint = QtWidgets.QLabel(
-        '<b>CNV region</b> marks the lesion’s horizontal extent as full-height columns. '
-        'It identifies where the lesion is, rather than its depth or tissue volume.<br><br>'
-        '<b>CNV edge</b> traces the lesion’s lower depth boundary. The tentative definition is '
-        'the bottom of the dark outer-retinal lesion above the RPE.<br><br>'
-        'Left-drag to mark either tool; Erase (E) or Ctrl+drag erases. Selecting CNV region takes priority '
-        'over earlier uncertainty tool selections without changing any saved unreliable or not-traceable judgments.')
-    e.cnv_info = info_button(e.cnv_hint, 'CNV region versus CNV edge')
+    e.cnv_hint = QtWidgets.QLabel(L.CORE_DEFINITION + '<br><br>' + L.FULL_DEFINITION)
+    e.cnv_info = info_button(e.cnv_hint, 'CNV-Core and Full-CNV Lesion definitions')
     cnv_row = QtWidgets.QHBoxLayout()
-    cnv_row.addWidget(e.lesion_tools.buttons['cnv_region'], 1)
-    cnv_row.addWidget(e.lesion_tools.buttons['cnv_edge'], 1)
+    cnv_row.setSpacing(4)
+    cnv_row.addWidget(e.lesion_tools.buttons['cnv_core'])
+    cnv_row.addWidget(e.lesion_tools.buttons['cnv_full'], 1)
     cnv_row.addWidget(e.cnv_info)
     layout.addLayout(cnv_row)
     layout.addWidget(e.cnv_hint)
+    context_row = QtWidgets.QHBoxLayout()
+    context_row.addWidget(e.lesion_tools.buttons['cnv_edge'])
+    e.show_auto_cnv = QtWidgets.QCheckBox('Show auto-CNV (pink)')
+    e.show_auto_cnv.setObjectName('show_auto_cnv')
+    e.show_auto_cnv.setChecked(True)
+    e.show_auto_cnv.setToolTip('Show or hide the separate octa-auto_CNV overlay in the B-scan and en-face view. Display only; no annotations change.')
+    e.show_auto_cnv.toggled.connect(e.redraw_surfaces)
+    context_row.addWidget(e.show_auto_cnv)
+    layout.addLayout(context_row)
     paint_row = QtWidgets.QHBoxLayout()
     paint_row.addWidget(e.lesion_tools.buttons['hyper_ref'], 1)
     paint_row.addWidget(e.lesion_tools.dial)
@@ -242,7 +246,7 @@ def confirm(e):
         messages.append(f'Unresolved positions: {names}. Bright red bars at the top show the affected A-lines (missing, out-of-image or crossing boundaries).')
         e.redraw_surfaces()
     if 'hyper_ref_outside_region' in warnings:
-        messages.append('Hyper_Ref extends outside CNV region. Review the paint or region, or confirm that segmentation is complete.')
+        messages.append('Hyper_Ref extends outside CNV-Core / Full-CNV. Review the paint or region, or confirm that segmentation is complete.')
     if warnings:
         message = '\n'.join(messages)
         e.status.setStyleSheet('color: #ff3030;')
@@ -269,7 +273,7 @@ def confirm(e):
             native_geometry=dict(width=e.width, depth=e.pack.images.shape[1], crop_offset=e.offset, orientation='vitreous_at_depth_zero'),
             lesion_contract=L.CONTRACT, lesion_definition=L.DEFINITION_VERSION, lesion_definitions=L.DEFINITIONS,
             lesion_digest=L.digest(r['lesions']), lesion_snapshot=L.snapshot(r['lesions']),
-            affirmation='I reviewed all boundaries, CNV region, CNV edge and Hyper_Ref across this B-scan. Unpainted Hyper_Ref inside CNV region is absent. Explicit boundary exceptions and image exclusions remain.')
+            affirmation='I reviewed all boundaries, CNV-Core / Full-CNV, CNV edge and Hyper_Ref across this B-scan. Unpainted Hyper_Ref inside CNV-Core / Full-CNV is absent. Explicit boundary exceptions and image exclusions remain.')
     except Exception as exc:
         e.status.setStyleSheet('color: #ff3030;')
         e.status.setText('Confirmation was not completed: ' + str(exc))

@@ -13,14 +13,16 @@ class LesionTools:
         self.mode = None
         self.gesture = None
         self.buttons = {}
-        for key, title in [('cnv_region', 'CNV region'), ('cnv_edge', 'CNV edge'), ('hyper_ref', 'Hyper_Ref')]:
+        for key, title in [('cnv_core', 'CNV-Core'), ('cnv_full', 'Full-CNV Lesion (RPE-Disrupt)'), ('cnv_edge', 'CNV edge'), ('hyper_ref', 'Hyper_Ref')]:
             button = QtWidgets.QPushButton(title)
             button.setCheckable(True)
             button.setObjectName(key)
             button.setStyleSheet('QPushButton:checked {background:#52527e; border:2px solid #d9aaff;}')
             button.toggled.connect(lambda checked, k=key: self.select(k if checked else None))
             self.buttons[key] = button
-        self.buttons['cnv_region'].setToolTip('Left-drag across the lesion: mark full-depth columns. Ctrl+drag clears. Separate from image exclusion and automatic CNV context.')
+        for key, definition in [('cnv_core', L.CORE_DEFINITION), ('cnv_full', L.FULL_DEFINITION)]:
+            self.buttons[key].setToolTip(definition + '\nLeft-drag marks full-depth columns. Erase (E) or Ctrl+drag clears only this category.')
+            self.buttons[key].setStyleSheet('QPushButton {color:' + L.REGION_COLORS[key] + ';} QPushButton:checked {background:#394553; border:2px solid ' + L.REGION_COLORS[key] + ';}')
         self.buttons['cnv_edge'].setToolTip('Tentative: bottom edge of the dark outer-retinal lesion above RPE. Left-drag traces; Ctrl+drag erases. No joins to other curves or ordering changes.')
         self.buttons['hyper_ref'].setToolTip('Tentative: hyperreflective dots inside the CNV lesion, above/separate from RPE. Left-drag paints; E or Ctrl+drag erases.')
         self.dial = QtWidgets.QDial()
@@ -36,7 +38,7 @@ class LesionTools:
         self.erase = QtWidgets.QPushButton('Erase')
         self.erase.setCheckable(True)
         self.erase.setFixedWidth(55)
-        self.erase.setToolTip('Erase on/off (E). Left-drag removes the selected retinal boundary, CNV region, CNV edge or Hyper_Ref. Undo restores it.')
+        self.erase.setToolTip('Erase on/off (E). Left-drag removes the selected retinal boundary, CNV-Core, Full-CNV, CNV edge or Hyper_Ref. Undo restores it.')
         self.erase.setStyleSheet('QPushButton:checked {background:#9a3942; border:2px solid #ff9098;}')
         self.dial.setToolTip('Brush diameter in native image pixels (9 px); unaffected by zoom.')
         self.erase.toggled.connect(lambda _: self.cancel())
@@ -48,6 +50,18 @@ class LesionTools:
         self.region_item.setPen(QtGui.QPen(Qt.PenStyle.NoPen))
         self.region_item.setBrush(QtGui.QColor(172, 107, 235, 35))
         self.region_item.setZValue(4)
+        self.region_item.setToolTip('Historical CNV region (not yet migrated)')
+        self.region_items = {}
+        for key in L.REGION_KEYS:
+            item = scene.addPath(QtGui.QPainterPath())
+            color = QtGui.QColor(L.REGION_COLORS[key]); color.setAlpha(34)
+            item.setBrush(color)
+            pen = QtGui.QPen(QtGui.QColor(L.REGION_COLORS[key]), 1.3)
+            pen.setCosmetic(True)
+            item.setPen(pen); item.setZValue(5)
+            item.setData(0, key)
+            item.setToolTip(L.CORE_DEFINITION if key == 'cnv_core' else L.FULL_DEFINITION)
+            self.region_items[key] = item
         self.mask_item = scene.addPixmap(QtGui.QPixmap())
         self.mask_item.setZValue(22)
         self.edge_items = [scene.addPath(QtGui.QPainterPath()) for _ in range(2)]
@@ -58,7 +72,7 @@ class LesionTools:
         self.cursor_item = scene.addEllipse(QtCore.QRectF())
         self.cursor_item.setZValue(52)
         self.cursor_item.hide()
-        for item in [self.region_item, self.mask_item, *self.edge_items, self.preview, self.cursor_item]:
+        for item in [self.region_item, *self.region_items.values(), self.mask_item, *self.edge_items, self.preview, self.cursor_item]:
             item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
         editor.surface_list.currentRowChanged.connect(lambda _: self.select(None))
         editor.surface_list.itemClicked.connect(lambda _: self.select(None))
@@ -78,7 +92,7 @@ class LesionTools:
     def select(self, mode):
         self.cancel()
         self.mode = mode
-        if mode == 'cnv_region':
+        if mode in L.REGION_KEYS:
             # Tool precedence only: never replay a reliability/traceability edit here.
             self.editor.mark_mode = None
             for button in self.editor.mark_buttons.values():
@@ -103,8 +117,9 @@ class LesionTools:
         if hasattr(self.editor, 'mark_hint'):
             from .controls import set_mark_mode
             set_mark_mode(self.editor, self.editor.mark_mode, self.editor.mark_mode is not None)
-            if mode in ('cnv_region', 'hyper_ref'):
-                self.editor.mark_hint.setText('Left-drag: ' + ('mark CNV columns; Ctrl+drag clears' if mode == 'cnv_region' else 'paint Hyper_Ref; E toggles erase'))
+            if mode in (*L.REGION_KEYS, 'hyper_ref'):
+                modifier = 'Command' if __import__('sys').platform == 'darwin' else 'Ctrl'
+                self.editor.mark_hint.setText('Left-drag: ' + (f'mark CNV columns; {modifier}+drag clears' if mode in L.REGION_KEYS else 'paint Hyper_Ref; E toggles erase'))
         if self.editor.rendered is not None:
             self.editor.redraw_surfaces()
 
@@ -197,7 +212,7 @@ class LesionTools:
         g = self.gesture
         points = g['points']
         path = QtGui.QPainterPath()
-        if g['mode'] in ('cnv_region', 'retinal_erase') or g['mark'] or (g['mode'] == 'cnv_edge' and g['erase']):
+        if g['mode'] in (*L.REGION_KEYS, 'retinal_erase') or g['mark'] or (g['mode'] == 'cnv_edge' and g['erase']):
             xs = [p[0] for p in points]
             path.addRect(min(xs), 0, max(1., max(xs)-min(xs)), self.editor.pack.images.shape[1])
         else:
@@ -219,12 +234,17 @@ class LesionTools:
             return
         state = e.resolved['lesions']
         visible = self.show.isChecked()
-        for item in [self.region_item, self.mask_item, *self.edge_items]:
+        for item in [self.region_item, *self.region_items.values(), self.mask_item, *self.edge_items]:
             item.setVisible(visible)
         path = QtGui.QPainterPath()
         for lo, hi in L.runs(state['cnv_region']):
             path.addRect(lo-.5, 0, hi-lo, state['hyper_ref'].shape[0])
         self.region_item.setPath(path)
+        for key, item in self.region_items.items():
+            path = QtGui.QPainterPath()
+            for lo, hi in L.runs(state[key]):
+                path.addRect(lo-.5, 0, hi-lo, state['hyper_ref'].shape[0])
+            item.setPath(path)
         rgba = np.zeros((*state['hyper_ref'].shape, 4), np.uint8)
         rgba[state['hyper_ref']] = (255, 202, 59, 110)
         image = QtGui.QImage(rgba.data, rgba.shape[1], rgba.shape[0], rgba.strides[0], QtGui.QImage.Format.Format_RGBA8888).copy()
